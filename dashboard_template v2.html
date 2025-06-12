@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradeMind AI - Step 2: Complete Trading Dashboard</title>
+    <title>TradeMind AI - Professional Trading Dashboard</title>
     
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Socket.IO for real-time updates -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     
     <style>
         :root {
@@ -16,9 +18,12 @@
             --danger: #ef4444;
             --warning: #f59e0b;
             --dark: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.9);
             --text-primary: #f8fafc;
             --text-secondary: #cbd5e1;
+            --accent: #06b6d4;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
         
         * {
@@ -28,17 +33,39 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
             color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 80%, rgba(245, 158, 11, 0.1) 0%, transparent 50%);
+            z-index: -1;
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(1deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
         }
         
         /* Header */
         .header {
             background: rgba(30, 41, 59, 0.95);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(15px);
             border-bottom: 1px solid rgba(59, 130, 246, 0.3);
             padding: 1rem 2rem;
             position: fixed;
@@ -46,6 +73,7 @@
             left: 0;
             right: 0;
             z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
         
         .header-content {
@@ -57,17 +85,22 @@
         }
         
         .logo {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: bold;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         .system-status {
             display: flex;
             gap: 1rem;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .status-indicator {
@@ -76,36 +109,57 @@
             gap: 0.5rem;
             padding: 0.5rem 1rem;
             background: rgba(255,255,255,0.1);
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 0.9rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .status-indicator:hover {
+            background: rgba(255,255,255,0.15);
+            transform: translateY(-1px);
         }
         
         .status-dot {
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
             background: var(--success);
             animation: pulse 2s infinite;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        
+        .status-dot.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
         }
         
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
             100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        
+        /* AI Status Indicator */
+        .ai-status {
+            background: var(--gradient-secondary);
+            color: white;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
         
         /* Main Layout */
         .main-container {
-            margin-top: 80px;
+            margin-top: 90px;
             padding: 2rem;
-            max-width: 1600px;
+            max-width: 1800px;
             margin-left: auto;
             margin-right: auto;
         }
         
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -117,16 +171,217 @@
             margin-bottom: 2rem;
         }
         
-        /* Chart Container */
+        /* Enhanced Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            transition: all 0.4s ease;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+        
+        .card:hover::before {
+            opacity: 1;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .card-icon {
+            font-size: 1.8rem;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover .card-icon {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+        
+        /* Enhanced Metrics */
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+            color: var(--success);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .metric-change {
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            opacity: 0.9;
+        }
+        
+        .positive { 
+            color: var(--success); 
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+        }
+        .negative { 
+            color: var(--danger); 
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+        }
+        .neutral { color: var(--text-secondary); }
+        
+        /* Trading Mode Toggle */
+        .mode-toggle {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .mode-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .mode-btn {
+            padding: 0.75rem 1.5rem;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mode-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .mode-btn:hover::before {
+            left: 100%;
+        }
+        
+        .mode-btn.active {
+            background: var(--secondary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        
+        .mode-btn.live-mode {
+            background: var(--danger);
+            border-color: #dc2626;
+            animation: dangerPulse 2s infinite;
+        }
+        
+        @keyframes dangerPulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); }
+            50% { box-shadow: 0 4px 25px rgba(239, 68, 68, 0.6); }
+        }
+        
+        /* Enhanced Market Ticker */
+        .market-ticker {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .market-ticker::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--success), var(--accent), var(--warning));
+            animation: tickerGlow 3s ease-in-out infinite;
+        }
+        
+        @keyframes tickerGlow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        .ticker-content {
+            display: flex;
+            gap: 3rem;
+            animation: scroll-ticker 40s linear infinite;
+            align-items: center;
+        }
+        
+        @keyframes scroll-ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        /* Chart Containers */
         .chart-container {
             background: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 1.5rem;
             border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            position: relative;
         }
         
         .chart-title {
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: 600;
             margin-bottom: 1rem;
             color: var(--text-primary);
@@ -144,125 +399,37 @@
             height: 300px;
         }
         
-        /* Cards */
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid rgba(59, 130, 246, 0.2);
+        /* AI Signals Panel */
+        .ai-signals {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+            border: 2px solid rgba(16, 185, 129, 0.3);
         }
         
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
-        }
-        
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        
-        .card-icon {
-            font-size: 1.5rem;
-        }
-        
-        /* Metrics */
-        .metric-value {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 0.5rem 0;
-            color: var(--success);
-        }
-        
-        .metric-change {
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-        
-        .positive { color: var(--success); }
-        .negative { color: var(--danger); }
-        .neutral { color: var(--text-secondary); }
-        
-        /* Trading Mode Toggle */
-        .mode-toggle {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border: 1px solid rgba(59, 130, 246, 0.2);
-        }
-        
-        .mode-buttons {
-            display: flex;
-            gap: 1rem;
-        }
-        
-        .mode-btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: rgba(255,255,255,0.1);
-            color: var(--text-secondary);
-        }
-        
-        .mode-btn.active {
-            background: var(--secondary);
-            color: white;
-        }
-        
-        /* Market Data Ticker */
-        .market-ticker {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 2rem;
-            border: 1px solid rgba(59, 130, 246, 0.2);
-            overflow: hidden;
-        }
-        
-        .ticker-content {
-            display: flex;
-            gap: 2rem;
-            animation: scroll-ticker 30s linear infinite;
-        }
-        
-        @keyframes scroll-ticker {
-            0% { transform: translateX(100%); }
-            100% { transform: translateX(-100%); }
-        }
-        
-        .ticker-item {
+        .signal-indicator {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            white-space: nowrap;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            margin: 0.5rem 0;
+            background: rgba(255,255,255,0.1);
+            font-weight: 600;
         }
         
-        /* Trades Table */
+        .signal-strong-buy { border-left: 4px solid var(--success); }
+        .signal-buy { border-left: 4px solid #22c55e; }
+        .signal-neutral { border-left: 4px solid var(--warning); }
+        .signal-sell { border-left: 4px solid #f97316; }
+        .signal-strong-sell { border-left: 4px solid var(--danger); }
+        
+        /* Enhanced Trades Table */
         .trades-table {
             background: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 1.5rem;
             border: 1px solid rgba(59, 130, 246, 0.2);
             margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
         
         .table {
@@ -272,34 +439,40 @@
         }
         
         .table th {
-            background: rgba(255,255,255,0.05);
+            background: rgba(59, 130, 246, 0.1);
             padding: 1rem;
             text-align: left;
             font-weight: 600;
             color: var(--text-secondary);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+            position: sticky;
+            top: 0;
         }
         
         .table td {
             padding: 1rem;
             border-bottom: 1px solid rgba(255,255,255,0.05);
+            vertical-align: middle;
         }
         
         .table tr:hover {
-            background: rgba(255,255,255,0.02);
+            background: rgba(255,255,255,0.05);
+            transform: scale(1.01);
+            transition: all 0.2s ease;
         }
         
-        /* Quick Trade Section */
+        /* Enhanced Quick Trade Section */
         .quick-trade {
             background: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 1.5rem;
             border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
         }
         
         .trade-form {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 1rem;
             margin-bottom: 1rem;
         }
@@ -313,56 +486,85 @@
             font-size: 0.9rem;
             color: var(--text-secondary);
             margin-bottom: 0.5rem;
+            font-weight: 500;
         }
         
         .form-group select,
         .form-group input {
             padding: 0.75rem;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.2);
             border-radius: 8px;
             background: rgba(255,255,255,0.1);
             color: var(--text-primary);
             font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
         
         .execute-btn {
             padding: 1rem 2rem;
-            background: var(--secondary);
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             grid-column: 1 / -1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .execute-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .execute-btn:hover::before {
+            left: 100%;
         }
         
         .execute-btn:hover {
-            background: var(--primary);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
         }
         
         .execute-btn:disabled {
             background: #666;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
         
-        /* Notifications */
+        /* Enhanced Notifications */
         .notification {
             position: fixed;
-            top: 100px;
+            top: 110px;
             right: 20px;
             padding: 1rem 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
             z-index: 2000;
             opacity: 0;
             transform: translateX(100%);
-            transition: all 0.3s ease;
-            max-width: 350px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 400px;
             font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
         }
         
         .notification.show {
@@ -371,22 +573,22 @@
         }
         
         .notification.success {
-            background: var(--success);
+            background: linear-gradient(135deg, var(--success), #22c55e);
             color: white;
         }
         
         .notification.error {
-            background: var(--danger);
+            background: linear-gradient(135deg, var(--danger), #dc2626);
             color: white;
         }
         
         .notification.warning {
-            background: var(--warning);
+            background: linear-gradient(135deg, var(--warning), #f97316);
             color: white;
         }
         
         .notification.info {
-            background: var(--secondary);
+            background: linear-gradient(135deg, var(--secondary), var(--accent));
             color: white;
         }
         
@@ -394,7 +596,7 @@
         .action-btn {
             padding: 0.5rem 1rem;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
@@ -409,25 +611,37 @@
         
         .close-btn:hover {
             background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
         }
         
-        /* Loading State */
+        /* Loading States */
         .loading {
-            opacity: 0.6;
+            position: relative;
+            opacity: 0.7;
             pointer-events: none;
         }
         
         .loading::after {
-            content: "Updating...";
+            content: "";
             position: absolute;
             top: 50%;
             left: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top: 2px solid var(--secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
             transform: translate(-50%, -50%);
-            color: var(--secondary);
-            font-weight: bold;
         }
         
-        /* Responsive */
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        /* Responsive Enhancements */
         @media (max-width: 1200px) {
             .charts-grid {
                 grid-template-columns: 1fr;
@@ -438,10 +652,17 @@
             .header-content {
                 flex-direction: column;
                 gap: 1rem;
+                padding: 0.5rem 0;
+            }
+            
+            .system-status {
+                flex-wrap: wrap;
+                justify-content: center;
             }
             
             .main-container {
                 padding: 1rem;
+                margin-top: 120px;
             }
             
             .grid {
@@ -451,6 +672,42 @@
             .chart-wrapper {
                 height: 300px;
             }
+            
+            .mode-toggle {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .ticker-item {
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Dark mode enhancements */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --card-bg: rgba(30, 41, 59, 0.95);
+            }
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--secondary);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
         }
     </style>
 </head>
@@ -459,21 +716,24 @@
     <header class="header">
         <div class="header-content">
             <div class="logo">
-                🧠 TradeMind AI - Step 2
+                🧠 TradeMind AI Professional
             </div>
             <div class="system-status">
                 <div class="status-indicator">
-                    <div class="status-dot"></div>
-                    <span>System Online</span>
+                    <div class="status-dot" id="connection-status"></div>
+                    <span id="system-status-text">Connecting...</span>
                 </div>
                 <div class="status-indicator">
-                    <span>Market Open</span>
+                    <span id="market-status-header">Market Status</span>
+                </div>
+                <div class="status-indicator ai-status">
+                    🤖 <span id="ai-status">AI Active</span>
                 </div>
                 <div class="status-indicator">
                     <span id="current-time">--:--:--</span>
                 </div>
                 <div class="status-indicator">
-                    <span id="market-status">NIFTY: --</span>
+                    <span id="live-price">NIFTY: --</span>
                 </div>
             </div>
         </div>
@@ -483,24 +743,29 @@
     <div class="main-container">
         <!-- Trading Mode Toggle -->
         <div class="mode-toggle">
-            <h2>Trading Mode</h2>
+            <h2>🔀 Trading Mode Control</h2>
             <div class="mode-buttons">
-                <button class="mode-btn active">📝 Paper Trading</button>
-                <button class="mode-btn">🔥 Live Trading</button>
+                <button class="mode-btn active" id="paper-mode-btn" onclick="switchTradingMode('paper')">
+                    📝 Paper Trading
+                </button>
+                <button class="mode-btn" id="live-mode-btn" onclick="switchTradingMode('live')">
+                    🔥 Live Trading
+                </button>
             </div>
             <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                Current mode: <span style="color: orange;">PAPER</span>
+                Current mode: <span id="current-mode" style="color: orange; font-weight: bold;">PAPER</span>
             </div>
         </div>
 
-        <!-- Market Ticker -->
+        <!-- Enhanced Market Ticker -->
         <div class="market-ticker">
             <div class="ticker-content" id="market-ticker">
-                <div class="ticker-item">📈 NIFTY: 25,450 (+0.5%)</div>
-                <div class="ticker-item">📊 BANKNIFTY: 57,200 (-0.2%)</div>
-                <div class="ticker-item">💰 VIX: 15.8 (+2.1%)</div>
-                <div class="ticker-item">🌍 SENSEX: 84,250 (+0.3%)</div>
-                <div class="ticker-item">🔥 FINNIFTY: 24,800 (+0.7%)</div>
+                <div class="ticker-item">📈 NIFTY: <span class="positive">25,450 (+0.5%)</span></div>
+                <div class="ticker-item">📊 BANKNIFTY: <span class="negative">57,200 (-0.2%)</span></div>
+                <div class="ticker-item">💰 VIX: <span class="positive">15.8 (+2.1%)</span></div>
+                <div class="ticker-item">🌍 SENSEX: <span class="positive">84,250 (+0.3%)</span></div>
+                <div class="ticker-item">🔥 FINNIFTY: <span class="positive">24,800 (+0.7%)</span></div>
+                <div class="ticker-item">⚡ System: <span class="positive">Online</span></div>
             </div>
         </div>
 
@@ -509,8 +774,8 @@
             <!-- Account Balance -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Account Balance</div>
-                    <div class="card-icon">💰</div>
+                    <div class="card-title">💰 Account Balance</div>
+                    <div class="card-icon">💳</div>
                 </div>
                 <div class="metric-value" id="account-balance">₹0</div>
                 <div class="metric-change neutral">
@@ -521,7 +786,7 @@
             <!-- Today's P&L -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Today's P&L</div>
+                    <div class="card-title">📈 Today's P&L</div>
                     <div class="card-icon">📊</div>
                 </div>
                 <div class="metric-value" id="daily-pnl">₹0</div>
@@ -531,7 +796,7 @@
             <!-- Open Positions -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Open Positions</div>
+                    <div class="card-title">📍 Open Positions</div>
                     <div class="card-icon">📈</div>
                 </div>
                 <div class="metric-value" id="open-positions">0</div>
@@ -543,8 +808,8 @@
             <!-- Win Rate -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Win Rate</div>
-                    <div class="card-icon">🎯</div>
+                    <div class="card-title">🎯 Win Rate</div>
+                    <div class="card-icon">🏆</div>
                 </div>
                 <div class="metric-value" id="win-rate">0%</div>
                 <div class="metric-change neutral">
@@ -552,23 +817,24 @@
                 </div>
             </div>
 
-            <!-- Total Trades -->
-            <div class="card">
+            <!-- AI Signals -->
+            <div class="card ai-signals">
                 <div class="card-header">
-                    <div class="card-title">Total Trades</div>
-                    <div class="card-icon">🔢</div>
+                    <div class="card-title">🤖 AI Trading Signals</div>
+                    <div class="card-icon">🧠</div>
                 </div>
-                <div class="metric-value" id="total-trades">0</div>
-                <div class="metric-change neutral">
-                    Active: <span id="active-trades">0</span>
+                <div id="ai-signals-content">
+                    <div class="signal-indicator signal-neutral">
+                        <span>🔍 Analyzing market conditions...</span>
+                    </div>
                 </div>
             </div>
 
             <!-- Best Trade -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">Best Trade</div>
-                    <div class="card-icon">🏆</div>
+                    <div class="card-title">🏆 Best Trade</div>
+                    <div class="card-icon">💎</div>
                 </div>
                 <div class="metric-value positive" id="best-trade">₹0</div>
                 <div class="metric-change neutral">
@@ -581,13 +847,13 @@
         <div class="charts-grid">
             <!-- P&L Chart -->
             <div class="chart-container">
-                <div class="chart-title">📈 P&L Performance Chart</div>
+                <div class="chart-title">📈 Real-time P&L Performance</div>
                 <div class="chart-wrapper">
                     <canvas id="pnlChart"></canvas>
                 </div>
             </div>
 
-            <!-- Win/Loss Pie Chart -->
+            <!-- Win/Loss Distribution -->
             <div class="chart-container">
                 <div class="chart-title">🎯 Win/Loss Distribution</div>
                 <div class="chart-wrapper small-chart">
@@ -598,36 +864,36 @@
 
         <!-- Balance History Chart -->
         <div class="chart-container">
-            <div class="chart-title">💰 Portfolio Balance History</div>
+            <div class="chart-title">💰 Portfolio Balance Evolution</div>
             <div class="chart-wrapper">
                 <canvas id="balanceChart"></canvas>
             </div>
         </div>
 
-        <!-- Recent Trades Table -->
+        <!-- Enhanced Trades Table -->
         <div class="trades-table">
-            <h2 style="margin-bottom: 1rem;">📋 Recent Trades</h2>
+            <h2 style="margin-bottom: 1rem;">📋 Live Trading Activity</h2>
             <div style="overflow-x: auto;">
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Symbol</th>
-                            <th>Strike</th>
-                            <th>Type</th>
-                            <th>Action</th>
-                            <th>Quantity</th>
-                            <th>Entry Price</th>
-                            <th>Current Price</th>
-                            <th>P&L</th>
-                            <th>Status</th>
-                            <th>Action</th>
+                            <th>⏰ Time</th>
+                            <th>📊 Symbol</th>
+                            <th>🎯 Strike</th>
+                            <th>🔢 Type</th>
+                            <th>⚡ Action</th>
+                            <th>📦 Lots</th>
+                            <th>💰 Entry</th>
+                            <th>📈 Current</th>
+                            <th>💵 P&L</th>
+                            <th>📍 Status</th>
+                            <th>🔧 Action</th>
                         </tr>
                     </thead>
                     <tbody id="trades-tbody">
                         <tr>
-                            <td colspan="11" style="text-align: center; color: var(--text-secondary);">
-                                Loading trades data...
+                            <td colspan="11" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                                🔄 Loading trades data...
                             </td>
                         </tr>
                     </tbody>
@@ -635,145 +901,230 @@
             </div>
         </div>
 
-        <!-- Quick Trade Section -->
+        <!-- Enhanced Quick Trade Section -->
         <div class="quick-trade">
-            <h2 style="margin-bottom: 1rem;">⚡ Quick Trade</h2>
+            <h2 style="margin-bottom: 1rem;">⚡ Quick Trade Execution</h2>
             <div class="trade-form">
                 <div class="form-group">
-                    <label>Symbol</label>
-                    <select id="symbol">
+                    <label>📊 Symbol</label>
+                    <select id="symbol" onchange="updateStrikeSuggestions()">
                         <option value="NIFTY">NIFTY</option>
                         <option value="BANKNIFTY">BANKNIFTY</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label>Strike Price</label>
-                    <input type="number" id="strike" placeholder="Strike Price">
+                    <label>🎯 Strike Price</label>
+                    <input type="number" id="strike" placeholder="e.g. 25000" min="1" step="50">
                 </div>
                 
                 <div class="form-group">
-                    <label>Option Type</label>
+                    <label>🔢 Option Type</label>
                     <select id="option-type">
-                        <option value="CE">Call (CE)</option>
-                        <option value="PE">Put (PE)</option>
+                        <option value="CE">📈 Call (CE)</option>
+                        <option value="PE">📉 Put (PE)</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label>Action</label>
+                    <label>⚡ Action</label>
                     <select id="action">
-                        <option value="BUY">BUY</option>
-                        <option value="SELL">SELL</option>
+                        <option value="BUY">🟢 BUY</option>
+                        <option value="SELL">🔴 SELL</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label>Quantity (Lots)</label>
-                    <input type="number" id="quantity" value="1" min="1">
+                    <label>📦 Quantity (Lots)</label>
+                    <input type="number" id="quantity" value="1" min="1" max="10">
                 </div>
                 
                 <div class="form-group">
-                    <label>Order Type</label>
-                    <select id="order-type">
-                        <option value="MARKET">MARKET</option>
-                        <option value="LIMIT">LIMIT</option>
+                    <label>📋 Order Type</label>
+                    <select id="order-type" onchange="togglePriceField()">
+                        <option value="MARKET">⚡ MARKET</option>
+                        <option value="LIMIT">🎯 LIMIT</option>
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label>Price</label>
-                    <input type="number" id="price" placeholder="Price" step="0.05" required>
+                    <label>💰 Price (₹)</label>
+                    <input type="number" id="price" placeholder="Enter price" step="0.05" min="0.05">
                 </div>
                 
-                <button class="execute-btn" onclick="executeTrade()">🚀 Execute Trade</button>
+                <button class="execute-btn" onclick="executeTrade()" id="execute-btn">
+                    🚀 Execute Trade
+                </button>
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
+        // Global variables and configuration
         let pnlChart, winLossChart, balanceChart;
-        const API_BASE = 'http://localhost:5001/api';
+        let socket = null;
+        const API_BASE = 'http://localhost:5000/api'; // Updated to match your backend port
         let isConnected = false;
+        let tradingMode = 'PAPER';
         let updateIntervals = {};
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
 
-        // Initialize dashboard
+        // Initialize dashboard when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 TradeMind AI Step 2 Dashboard Loading...');
+            console.log('🧠 TradeMind AI Professional Dashboard Initializing...');
             
-            // Initialize charts
-            initializePnLChart();
-            initializeWinLossChart();
-            initializeBalanceChart();
+            // Initialize all components
+            initializeCharts();
+            connectToBackend();
+            setupEventListeners();
             
-            // Test backend connection
-            testConnection().then(() => {
-                if (isConnected) {
-                    startDataUpdates();
-                    console.log('✅ Step 2 Dashboard fully connected!');
-                } else {
-                    showNotification('Backend not connected - running in demo mode', 'warning');
-                }
-            });
+            console.log('✅ Dashboard initialization complete!');
         });
 
-        // Test backend connection
-        async function testConnection() {
+        // Connect to backend with WebSocket and REST API
+        async function connectToBackend() {
             try {
-                const response = await fetch(`${API_BASE}/health`);
+                updateConnectionStatus('connecting');
+                
+                // Test REST API connection first
+                const response = await fetch(`${API_BASE}/status`);
                 const data = await response.json();
                 
-                if (data.status === 'healthy') {
+                if (data.status === 'online') {
                     isConnected = true;
-                    showNotification('Connected to Step 2 Backend!', 'success');
-                    console.log('✅ Backend connection successful');
-                    return true;
+                    updateConnectionStatus('connected');
+                    
+                    // Initialize WebSocket connection
+                    initializeWebSocket();
+                    
+                    // Start data updates
+                    startDataUpdates();
+                    
+                    showNotification('🟢 Connected to TradeMind AI Backend!', 'success');
+                    console.log('✅ Backend connection established');
+                } else {
+                    throw new Error('Backend not ready');
                 }
             } catch (error) {
-                console.log('⚠️ Backend not available:', error.message);
+                console.error('❌ Backend connection failed:', error);
                 isConnected = false;
-                return false;
+                updateConnectionStatus('disconnected');
+                
+                // Attempt reconnection
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++;
+                    showNotification(`⚠️ Connection failed, retrying... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, 'warning');
+                    setTimeout(connectToBackend, 5000);
+                } else {
+                    showNotification('❌ Backend unavailable - Running in demo mode', 'error');
+                    startDemoMode();
+                }
             }
         }
 
-        // Start data updates
-        function startDataUpdates() {
-            // Initial data load
-            updateBalance();
-            updateTradingStats();
-            updateMarketData();
-            updateTrades();
-            updateCharts();
-            
-            // Set up intervals
-            updateIntervals.balance = setInterval(updateBalance, 10000); // 10 seconds
-            updateIntervals.marketData = setInterval(updateMarketData, 5000); // 5 seconds
-            updateIntervals.trades = setInterval(updateTrades, 10000); // 10 seconds
-            updateIntervals.charts = setInterval(updateCharts, 30000); // 30 seconds
-            updateIntervals.stats = setInterval(updateTradingStats, 15000); // 15 seconds
-            
-            console.log('⚡ Real-time updates active!');
+        // Initialize WebSocket connection for real-time updates
+        function initializeWebSocket() {
+            try {
+                socket = io('http://localhost:5000');
+                
+                socket.on('connect', function() {
+                    console.log('🔌 WebSocket connected');
+                    socket.emit('subscribe_updates');
+                });
+                
+                socket.on('real_time_update', function(data) {
+                    updateDashboardData(data);
+                });
+                
+                socket.on('ai_update', function(data) {
+                    updateAISignals(data);
+                });
+                
+                socket.on('disconnect', function() {
+                    console.log('🔌 WebSocket disconnected');
+                    updateConnectionStatus('disconnected');
+                });
+                
+                socket.on('connect_error', function(error) {
+                    console.error('🔌 WebSocket error:', error);
+                });
+                
+            } catch (error) {
+                console.error('❌ WebSocket initialization failed:', error);
+            }
         }
 
-        // Update balance
-        async function updateBalance() {
+        // Update connection status indicator
+        function updateConnectionStatus(status) {
+            const statusDot = document.getElementById('connection-status');
+            const statusText = document.getElementById('system-status-text');
+            
+            switch (status) {
+                case 'connected':
+                    statusDot.className = 'status-dot';
+                    statusText.textContent = 'System Online';
+                    break;
+                case 'connecting':
+                    statusDot.className = 'status-dot';
+                    statusText.textContent = 'Connecting...';
+                    break;
+                case 'disconnected':
+                    statusDot.className = 'status-dot disconnected';
+                    statusText.textContent = 'Disconnected';
+                    break;
+            }
+        }
+
+        // Start regular data updates
+        function startDataUpdates() {
+            if (!isConnected) return;
+            
+            // Initial data load
+            Promise.all([
+                updateAccountBalance(),
+                updateTradingStatistics(),
+                updateMarketData(),
+                updateRecentTrades(),
+                updateAIAnalysis()
+            ]).then(() => {
+                console.log('📊 Initial data load complete');
+            });
+            
+            // Set up update intervals
+            updateIntervals.balance = setInterval(updateAccountBalance, 15000); // 15 seconds
+            updateIntervals.market = setInterval(updateMarketData, 5000); // 5 seconds
+            updateIntervals.trades = setInterval(updateRecentTrades, 10000); // 10 seconds
+            updateIntervals.stats = setInterval(updateTradingStatistics, 20000); // 20 seconds
+            updateIntervals.ai = setInterval(updateAIAnalysis, 30000); // 30 seconds
+            
+            console.log('⚡ Real-time updates activated');
+        }
+
+        // Update account balance
+        async function updateAccountBalance() {
             if (!isConnected) return;
             
             try {
                 const response = await fetch(`${API_BASE}/balance`);
-                const data = await response.json();
+                const result = await response.json();
                 
-                if (data.status === 'success') {
-                    updateElement('account-balance', `₹${data.balance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
-                    updateElement('available-balance', `₹${data.available.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                if (result.success) {
+                    updateElement('account-balance', result.balance_formatted);
+                    updateElement('available-balance', result.balance_formatted);
                     
-                    const dailyPnlElement = document.getElementById('daily-pnl');
-                    if (dailyPnlElement) {
-                        dailyPnlElement.textContent = `₹${data.daily_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-                        dailyPnlElement.className = data.daily_pnl > 0 ? 'metric-value positive' : 
-                                                   data.daily_pnl < 0 ? 'metric-value negative' : 
-                                                   'metric-value neutral';
+                    // Update daily P&L if available
+                    if (result.daily_pnl !== undefined) {
+                        const pnlElement = document.getElementById('daily-pnl');
+                        const pnlPercentElement = document.getElementById('pnl-percentage');
+                        
+                        pnlElement.textContent = result.daily_pnl_formatted || '₹0.00';
+                        pnlElement.className = `metric-value ${result.daily_pnl > 0 ? 'positive' : result.daily_pnl < 0 ? 'negative' : 'neutral'}`;
+                        
+                        if (pnlPercentElement) {
+                            pnlPercentElement.textContent = `${result.daily_percentage?.toFixed(2) || '0.00'}%`;
+                            pnlPercentElement.className = `metric-change ${result.daily_pnl > 0 ? 'positive' : result.daily_pnl < 0 ? 'negative' : 'neutral'}`;
+                        }
                     }
                 }
             } catch (error) {
@@ -782,27 +1133,31 @@
         }
 
         // Update trading statistics
-        async function updateTradingStats() {
+        async function updateTradingStatistics() {
             if (!isConnected) return;
             
             try {
-                const response = await fetch(`${API_BASE}/trading_stats`);
+                const response = await fetch(`${API_BASE}/dashboard/summary`);
                 const result = await response.json();
                 
-                if (result.status === 'success') {
-                    const stats = result.data;
+                if (result) {
+                    const positions = result.positions || {};
+                    const performance = result.performance || {};
                     
-                    updateElement('open-positions', stats.open_positions);
-                    updateElement('trades-today', stats.trades_today);
-                    updateElement('win-rate', `${stats.win_rate}%`);
-                    updateElement('win-loss', `${stats.winning_trades}W / ${stats.losing_trades}L`);
-                    updateElement('total-trades', stats.total_trades);
-                    updateElement('active-trades', stats.open_positions);
-                    updateElement('best-trade', `₹${stats.best_trade.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
-                    updateElement('worst-trade', `₹${stats.worst_trade.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                    updateElement('open-positions', positions.count || 0);
+                    updateElement('trades-today', positions.active || 0);
+                    
+                    const winRate = performance.win_rate || 0;
+                    const winningTrades = performance.winning_trades || 0;
+                    const losingTrades = performance.losing_trades || 0;
+                    
+                    updateElement('win-rate', `${winRate.toFixed(1)}%`);
+                    updateElement('win-loss', `${winningTrades}W / ${losingTrades}L`);
+                    updateElement('best-trade', `₹${(performance.best_trade || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                    updateElement('worst-trade', `₹${(performance.worst_trade || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
                 }
             } catch (error) {
-                console.error('❌ Trading stats update failed:', error);
+                console.error('❌ Statistics update failed:', error);
             }
         }
 
@@ -811,63 +1166,107 @@
             if (!isConnected) return;
             
             try {
-                const response = await fetch(`${API_BASE}/market_data`);
-                const result = await response.json();
+                // Update NIFTY data
+                const niftyResponse = await fetch(`${API_BASE}/market/nifty`);
+                const niftyData = await niftyResponse.json();
                 
-                if (result.status === 'success') {
-                    const marketData = result.data;
-                    
-                    // Update market status in header
-                    const marketStatusElement = document.getElementById('market-status');
-                    if (marketStatusElement && marketData.NIFTY) {
-                        marketStatusElement.textContent = `NIFTY: ${marketData.NIFTY.price}`;
+                if (niftyData && !niftyData.error) {
+                    const livePriceElement = document.getElementById('live-price');
+                    if (livePriceElement) {
+                        livePriceElement.textContent = `NIFTY: ${niftyData.price?.toLocaleString('en-IN') || '--'}`;
                     }
-                    
-                    // Update market ticker
-                    updateMarketTicker(marketData);
                 }
+                
+                // Update market status
+                const marketStatusElement = document.getElementById('market-status-header');
+                if (marketStatusElement) {
+                    const now = new Date();
+                    const hour = now.getHours();
+                    const isMarketOpen = hour >= 9 && hour < 16; // Simplified market hours
+                    marketStatusElement.textContent = isMarketOpen ? '🟢 Market Open' : '🔴 Market Closed';
+                }
+                
             } catch (error) {
                 console.error('❌ Market data update failed:', error);
             }
         }
 
-        // Update market ticker
-        function updateMarketTicker(marketData) {
-            const tickerElement = document.getElementById('market-ticker');
-            if (!tickerElement) return;
-            
-            let tickerHTML = '';
-            
-            Object.entries(marketData).forEach(([symbol, data]) => {
-                const changeClass = data.change > 0 ? 'positive' : data.change < 0 ? 'negative' : 'neutral';
-                const changeSign = data.change > 0 ? '+' : '';
-                
-                tickerHTML += `
-                    <div class="ticker-item">
-                        <span class="ticker-symbol">${symbol}:</span>
-                        <span class="ticker-price">${data.price}</span>
-                        <span class="ticker-change ${changeClass}">(${changeSign}${data.change}%)</span>
-                    </div>
-                `;
-            });
-            
-            tickerElement.innerHTML = tickerHTML;
-        }
-
-        // Update trades
-        async function updateTrades() {
+        // Update recent trades
+        async function updateRecentTrades() {
             if (!isConnected) return;
             
             try {
-                const response = await fetch(`${API_BASE}/trades`);
+                const response = await fetch(`${API_BASE}/positions`);
                 const result = await response.json();
                 
-                if (result.status === 'success') {
-                    updateTradesTable(result.data);
-                }
+                const trades = [...(result.live_positions || []), ...(result.portfolio_positions || [])];
+                updateTradesTable(trades);
+                
             } catch (error) {
                 console.error('❌ Trades update failed:', error);
             }
+        }
+
+        // Update AI analysis
+        async function updateAIAnalysis() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/ai/decision`);
+                const result = await response.json();
+                
+                if (result && !result.error) {
+                    updateAISignals(result);
+                }
+            } catch (error) {
+                console.error('❌ AI analysis update failed:', error);
+            }
+        }
+
+        // Update AI signals display
+        function updateAISignals(data) {
+            const signalsContainer = document.getElementById('ai-signals-content');
+            if (!signalsContainer || !data) return;
+            
+            const recommendation = data.recommendation || data.combined_recommendation || 'ANALYZING';
+            const confidence = data.combined_confidence || data.ml_confidence || 50;
+            
+            let signalClass = 'signal-neutral';
+            let signalIcon = '🔍';
+            let signalText = recommendation;
+            
+            switch (recommendation.toUpperCase()) {
+                case 'STRONG BUY':
+                    signalClass = 'signal-strong-buy';
+                    signalIcon = '🚀';
+                    break;
+                case 'BUY':
+                    signalClass = 'signal-buy';
+                    signalIcon = '📈';
+                    break;
+                case 'SELL':
+                    signalClass = 'signal-sell';
+                    signalIcon = '📉';
+                    break;
+                case 'STRONG SELL':
+                    signalClass = 'signal-strong-sell';
+                    signalIcon = '⚡';
+                    break;
+                default:
+                    signalText = 'NEUTRAL';
+            }
+            
+            signalsContainer.innerHTML = `
+                <div class="signal-indicator ${signalClass}">
+                    <span>${signalIcon} ${signalText}</span>
+                    <span style="margin-left: auto; font-size: 0.8rem;">
+                        ${confidence.toFixed(0)}% confidence
+                    </span>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    Last updated: ${new Date().toLocaleTimeString()}
+                </div>
+            `;
         }
 
         // Update trades table
@@ -877,90 +1276,109 @@
             
             tbody.innerHTML = '';
             
-            if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-secondary);">No trades found</td></tr>';
+            if (!trades || trades.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                            📋 No active trades found
+                        </td>
+                    </tr>
+                `;
                 return;
             }
             
-            // Show latest trades first
+            // Show recent trades (last 10)
             trades.slice(-10).reverse().forEach(trade => {
                 const row = document.createElement('tr');
-                const time = new Date(trade.timestamp).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'});
-                const pnlClass = trade.pnl > 0 ? 'positive' : trade.pnl < 0 ? 'negative' : 'neutral';
+                const time = new Date(trade.timestamp || Date.now()).toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const pnl = trade.pnl || 0;
+                const pnlClass = pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : 'neutral';
+                const status = trade.status || 'UNKNOWN';
                 
                 let actionButton = '';
-                if (trade.status === 'OPEN') {
-                    actionButton = `<button class="action-btn close-btn" onclick="closeTrade('${trade.trade_id}')">Close</button>`;
+                if (status === 'OPEN') {
+                    actionButton = `<button class="action-btn close-btn" onclick="closeTrade('${trade.trade_id || trade.id}')">🔒 Close</button>`;
                 } else {
                     actionButton = `<span style="color: var(--text-secondary);">-</span>`;
                 }
                 
                 row.innerHTML = `
                     <td>${time}</td>
-                    <td>${trade.symbol}</td>
+                    <td><strong>${trade.symbol || 'N/A'}</strong></td>
                     <td>${trade.strike || 'N/A'}</td>
                     <td>${trade.option_type || 'N/A'}</td>
-                    <td>${trade.action}</td>
-                    <td>${trade.quantity}</td>
-                    <td>₹${trade.entry_price}</td>
-                    <td>₹${trade.current_price || trade.entry_price}</td>
-                    <td class="${pnlClass}">₹${trade.pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
-                    <td><span style="color: ${trade.status === 'OPEN' ? '#f59e0b' : '#10b981'}">${trade.status}</span></td>
+                    <td><span style="color: ${trade.action === 'BUY' ? 'var(--success)' : 'var(--danger)'}">${trade.action || 'N/A'}</span></td>
+                    <td>${trade.quantity || 0}</td>
+                    <td>₹${(trade.entry_price || 0).toFixed(2)}</td>
+                    <td>₹${(trade.current_price || trade.entry_price || 0).toFixed(2)}</td>
+                    <td class="${pnlClass}"><strong>₹${pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong></td>
+                    <td><span style="color: ${status === 'OPEN' ? '#f59e0b' : '#10b981'}">${status}</span></td>
                     <td>${actionButton}</td>
                 `;
                 tbody.appendChild(row);
             });
         }
 
-        // Execute trade
+        // Execute trade function
         async function executeTrade() {
             if (!isConnected) {
-                showNotification('Backend not connected - cannot execute trade', 'error');
+                showNotification('❌ Backend not connected - cannot execute trade', 'error');
                 return;
             }
             
-            // Get form data
-            const tradeParams = {
-                symbol: document.getElementById('symbol').value,
-                strike: document.getElementById('strike').value,
-                option_type: document.getElementById('option-type').value,
-                action: document.getElementById('action').value,
-                quantity: parseInt(document.getElementById('quantity').value) || 1,
-                order_type: document.getElementById('order-type').value,
-                price: parseFloat(document.getElementById('price').value)
+            // Get form values
+            const symbol = document.getElementById('symbol').value;
+            const strike = parseFloat(document.getElementById('strike').value);
+            const optionType = document.getElementById('option-type').value;
+            const action = document.getElementById('action').value;
+            const quantity = parseInt(document.getElementById('quantity').value) || 1;
+            const orderType = document.getElementById('order-type').value;
+            const price = parseFloat(document.getElementById('price').value);
+            
+            // Validate inputs
+            if (!strike || strike <= 0) {
+                showNotification('⚠️ Please enter a valid strike price', 'warning');
+                return;
+            }
+            
+            if (orderType === 'LIMIT' && (!price || price <= 0)) {
+                showNotification('⚠️ Please enter a valid price for limit order', 'warning');
+                return;
+            }
+            
+            const tradeData = {
+                symbol,
+                strike,
+                option_type: optionType,
+                action,
+                quantity,
+                order_type: orderType,
+                price: orderType === 'MARKET' ? 0 : price
             };
-            
-            // Validate required fields
-            if (!tradeParams.strike) {
-                showNotification('Please enter strike price', 'error');
-                return;
-            }
-            
-            if (!tradeParams.price || tradeParams.price <= 0) {
-                showNotification('Please enter valid price', 'error');
-                return;
-            }
             
             try {
                 // Show loading state
-                const executeBtn = document.querySelector('.execute-btn');
+                const executeBtn = document.getElementById('execute-btn');
                 const originalText = executeBtn.textContent;
                 executeBtn.textContent = '⏳ Executing...';
                 executeBtn.disabled = true;
                 
-                // Execute trade via API
-                const response = await fetch(`${API_BASE}/execute_trade`, {
+                const response = await fetch(`${API_BASE}/trading/execute`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(tradeParams)
+                    body: JSON.stringify(tradeData)
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification(result.message, 'success');
+                    showNotification(`✅ Trade executed successfully! Order ID: ${result.trade_id}`, 'success');
                     
                     // Clear form
                     document.getElementById('strike').value = '';
@@ -968,35 +1386,39 @@
                     
                     // Refresh data
                     setTimeout(() => {
-                        updateTradingStats();
-                        updateTrades();
-                        updateBalance();
+                        updateAccountBalance();
+                        updateTradingStatistics();
+                        updateRecentTrades();
                     }, 1000);
                     
                 } else {
-                    showNotification(result.message, 'error');
+                    showNotification(`❌ Trade failed: ${result.message}`, 'error');
                 }
                 
             } catch (error) {
-                console.error('❌ Trade execution failed:', error);
-                showNotification('Trade execution failed - check connection', 'error');
+                console.error('❌ Trade execution error:', error);
+                showNotification('❌ Trade execution failed - please try again', 'error');
             } finally {
                 // Reset button
-                const executeBtn = document.querySelector('.execute-btn');
+                const executeBtn = document.getElementById('execute-btn');
                 executeBtn.textContent = originalText;
                 executeBtn.disabled = false;
             }
         }
 
-        // Close trade
+        // Close trade function
         async function closeTrade(tradeId) {
             if (!isConnected) {
-                showNotification('Backend not connected', 'error');
+                showNotification('❌ Backend not connected', 'error');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to close this trade?')) {
                 return;
             }
             
             try {
-                const response = await fetch(`${API_BASE}/close_trade`, {
+                const response = await fetch(`${API_BASE}/trading/close`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1007,52 +1429,118 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification(result.message, 'success');
+                    showNotification('✅ Trade closed successfully!', 'success');
                     
                     // Refresh data
                     setTimeout(() => {
-                        updateTradingStats();
-                        updateTrades();
-                        updateBalance();
+                        updateAccountBalance();
+                        updateTradingStatistics();
+                        updateRecentTrades();
                     }, 1000);
                 } else {
-                    showNotification(result.message, 'error');
+                    showNotification(`❌ Failed to close trade: ${result.message}`, 'error');
                 }
                 
             } catch (error) {
-                console.error('❌ Close trade failed:', error);
-                showNotification('Failed to close trade', 'error');
+                console.error('❌ Close trade error:', error);
+                showNotification('❌ Failed to close trade', 'error');
             }
         }
 
-        // Update charts
-        async function updateCharts() {
-            if (!isConnected) return;
+        // Switch trading mode
+        async function switchTradingMode(mode) {
+            if (mode === 'live') {
+                const confirmed = confirm(
+                    '⚠️ WARNING: You are switching to LIVE TRADING mode!\n\n' +
+                    'This will execute real trades with real money.\n' +
+                    'Are you absolutely sure you want to continue?'
+                );
+                
+                if (!confirmed) return;
+            }
             
             try {
-                // Update P&L chart
-                const pnlResponse = await fetch(`${API_BASE}/pnl_chart`);
-                const pnlData = await pnlResponse.json();
+                const response = await fetch(`${API_BASE}/trading/mode`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        mode: mode.toLowerCase(),
+                        confirmation: mode === 'live' ? true : false
+                    })
+                });
                 
-                if (pnlData.status === 'success' && pnlChart) {
-                    pnlChart.data.labels = pnlData.data.labels;
-                    pnlChart.data.datasets[0].data = pnlData.data.values;
-                    pnlChart.update('none');
-                }
+                const result = await response.json();
                 
-                // Update portfolio chart
-                const portfolioResponse = await fetch(`${API_BASE}/portfolio_chart`);
-                const portfolioData = await portfolioResponse.json();
-                
-                if (portfolioData.status === 'success' && balanceChart) {
-                    balanceChart.data.labels = portfolioData.data.labels;
-                    balanceChart.data.datasets[0].data = portfolioData.data.values;
-                    balanceChart.update('none');
+                if (result.mode) {
+                    tradingMode = result.mode.toUpperCase();
+                    updateTradingModeUI(tradingMode);
+                    showNotification(`✅ Switched to ${tradingMode} trading mode`, 'success');
+                } else {
+                    showNotification('❌ Failed to switch trading mode', 'error');
                 }
                 
             } catch (error) {
-                console.error('❌ Chart update failed:', error);
+                console.error('❌ Mode switch error:', error);
+                showNotification('❌ Failed to switch trading mode', 'error');
             }
+        }
+
+        // Update trading mode UI
+        function updateTradingModeUI(mode) {
+            const paperBtn = document.getElementById('paper-mode-btn');
+            const liveBtn = document.getElementById('live-mode-btn');
+            const currentModeSpan = document.getElementById('current-mode');
+            
+            if (mode === 'LIVE') {
+                paperBtn.classList.remove('active');
+                liveBtn.classList.add('active', 'live-mode');
+                currentModeSpan.textContent = 'LIVE';
+                currentModeSpan.style.color = 'var(--danger)';
+            } else {
+                liveBtn.classList.remove('active', 'live-mode');
+                paperBtn.classList.add('active');
+                currentModeSpan.textContent = 'PAPER';
+                currentModeSpan.style.color = 'orange';
+            }
+        }
+
+        // Toggle price field based on order type
+        function togglePriceField() {
+            const orderType = document.getElementById('order-type').value;
+            const priceField = document.getElementById('price');
+            
+            if (orderType === 'MARKET') {
+                priceField.disabled = true;
+                priceField.placeholder = 'Market price';
+                priceField.required = false;
+            } else {
+                priceField.disabled = false;
+                priceField.placeholder = 'Enter limit price';
+                priceField.required = true;
+            }
+        }
+
+        // Update strike suggestions based on symbol
+        function updateStrikeSuggestions() {
+            const symbol = document.getElementById('symbol').value;
+            const strikeField = document.getElementById('strike');
+            
+            if (symbol === 'NIFTY') {
+                strikeField.placeholder = 'e.g. 25000';
+                strikeField.step = '50';
+            } else if (symbol === 'BANKNIFTY') {
+                strikeField.placeholder = 'e.g. 55000';
+                strikeField.step = '100';
+            }
+        }
+
+        // Initialize all charts
+        function initializeCharts() {
+            initializePnLChart();
+            initializeWinLossChart();
+            initializeBalanceChart();
         }
 
         // Initialize P&L Chart
@@ -1062,10 +1550,10 @@
             pnlChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['9:15', '9:30', '9:45', '10:00', '10:15', '10:30', '10:45', '11:00'],
+                    labels: ['9:15', '9:30', '9:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30'],
                     datasets: [{
                         label: 'P&L (₹)',
-                        data: [0, 150, -80, 200, 350, 180, 450, 320],
+                        data: [0, 180, -65, 250, 420, 180, 540, 320, 480, 650],
                         borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                         borderWidth: 3,
@@ -1074,7 +1562,8 @@
                         pointBackgroundColor: '#10b981',
                         pointBorderColor: '#ffffff',
                         pointBorderWidth: 2,
-                        pointRadius: 5
+                        pointRadius: 6,
+                        pointHoverRadius: 8
                     }]
                 },
                 options: {
@@ -1085,21 +1574,38 @@
                             display: true,
                             labels: {
                                 color: '#f8fafc',
-                                font: { size: 14 }
+                                font: { size: 14, weight: '600' }
                             }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
                         }
                     },
                     scales: {
                         x: {
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            ticks: { color: '#cbd5e1' }
+                            grid: { 
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false
+                            },
+                            ticks: { 
+                                color: '#cbd5e1',
+                                font: { size: 12 }
+                            }
                         },
                         y: {
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            grid: { 
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false
+                            },
                             ticks: {
                                 color: '#cbd5e1',
+                                font: { size: 12 },
                                 callback: function(value) {
-                                    return '₹' + value;
+                                    return '₹' + value.toLocaleString();
                                 }
                             }
                         }
@@ -1121,10 +1627,11 @@
                 data: {
                     labels: ['Winning Trades', 'Losing Trades', 'Breakeven'],
                     datasets: [{
-                        data: [65, 25, 10],
+                        data: [68, 22, 10],
                         backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
                         borderColor: ['#ffffff', '#ffffff', '#ffffff'],
-                        borderWidth: 2
+                        borderWidth: 3,
+                        hoverBorderWidth: 4
                     }]
                 },
                 options: {
@@ -1136,7 +1643,20 @@
                             labels: {
                                 color: '#f8fafc',
                                 padding: 20,
-                                font: { size: 12 }
+                                font: { size: 12, weight: '500' },
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%';
+                                }
                             }
                         }
                     }
@@ -1151,15 +1671,20 @@
             balanceChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                    labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7', 'Today'],
                     datasets: [{
                         label: 'Balance (₹)',
-                        data: [10000, 10150, 9950, 10300, 10450, 10200, 10650],
+                        data: [100000, 101500, 99500, 103000, 104500, 102000, 106500, 108200],
                         borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
                         borderWidth: 3,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
                     }]
                 },
                 options: {
@@ -1170,21 +1695,43 @@
                             display: true,
                             labels: {
                                 color: '#f8fafc',
-                                font: { size: 14 }
+                                font: { size: 14, weight: '600' }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 41, 59, 0.9)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#f8fafc',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Balance: ₹' + context.parsed.y.toLocaleString('en-IN');
+                                }
                             }
                         }
                     },
                     scales: {
                         x: {
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            ticks: { color: '#cbd5e1' }
+                            grid: { 
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false
+                            },
+                            ticks: { 
+                                color: '#cbd5e1',
+                                font: { size: 12 }
+                            }
                         },
                         y: {
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            grid: { 
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawBorder: false
+                            },
                             ticks: {
                                 color: '#cbd5e1',
+                                font: { size: 12 },
                                 callback: function(value) {
-                                    return '₹' + value.toLocaleString();
+                                    return '₹' + (value / 1000).toFixed(0) + 'K';
                                 }
                             }
                         }
@@ -1193,13 +1740,140 @@
             });
         }
 
-        // Update current time
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        // Update dashboard with real-time data
+        function updateDashboardData(data) {
+            if (data.balance !== undefined) {
+                updateElement('account-balance', data.balance_formatted || `₹${data.balance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+            }
+            
+            if (data.daily_pnl !== undefined) {
+                const pnlElement = document.getElementById('daily-pnl');
+                if (pnlElement) {
+                    pnlElement.textContent = data.daily_pnl_formatted || `₹${data.daily_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                    pnlElement.className = `metric-value ${data.daily_pnl > 0 ? 'positive' : data.daily_pnl < 0 ? 'negative' : 'neutral'}`;
+                }
+            }
+            
+            if (data.positions_count !== undefined) {
+                updateElement('open-positions', data.positions_count);
+            }
+            
+            // Update market status
+            if (data.market_status) {
+                const marketStatusElement = document.getElementById('market-status-header');
+                if (marketStatusElement) {
+                    marketStatusElement.textContent = data.market_status === 'OPEN' ? '🟢 Market Open' : '🔴 Market Closed';
+                }
+            }
         }
 
-        // Utility functions
+        // Start demo mode when backend is unavailable
+        function startDemoMode() {
+            console.log('🎭 Starting demo mode...');
+            
+            // Set demo data
+            updateElement('account-balance', '₹1,00,000.00');
+            updateElement('available-balance', '₹95,000.00');
+            updateElement('daily-pnl', '₹+2,500.00');
+            document.getElementById('daily-pnl').className = 'metric-value positive';
+            updateElement('pnl-percentage', '+2.5%');
+            document.getElementById('pnl-percentage').className = 'metric-change positive';
+            updateElement('open-positions', '3');
+            updateElement('trades-today', '5');
+            updateElement('win-rate', '72.5%');
+            updateElement('win-loss', '8W / 3L');
+            updateElement('best-trade', '₹1,850.00');
+            updateElement('worst-trade', '₹-650.00');
+            
+            // Demo AI signals
+            updateAISignals({
+                recommendation: 'BUY',
+                combined_confidence: 78,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Demo trades
+            const demoTrades = [
+                {
+                    trade_id: 'DEMO_001',
+                    timestamp: new Date(Date.now() - 300000).toISOString(),
+                    symbol: 'NIFTY',
+                    strike: 25300,
+                    option_type: 'CE',
+                    action: 'BUY',
+                    quantity: 2,
+                    entry_price: 145.50,
+                    current_price: 162.75,
+                    pnl: 2587.50,
+                    status: 'OPEN'
+                },
+                {
+                    trade_id: 'DEMO_002',
+                    timestamp: new Date(Date.now() - 600000).toISOString(),
+                    symbol: 'BANKNIFTY',
+                    strike: 55500,
+                    option_type: 'PE',
+                    action: 'BUY',
+                    quantity: 1,
+                    entry_price: 238.25,
+                    current_price: 195.80,
+                    pnl: -1273.50,
+                    status: 'OPEN'
+                }
+            ];
+            
+            updateTradesTable(demoTrades);
+            
+            showNotification('🎭 Running in demo mode - Backend unavailable', 'warning');
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Handle form submissions with Enter key
+            document.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.target.closest('.quick-trade')) {
+                    e.preventDefault();
+                    executeTrade();
+                }
+            });
+            
+            // Handle window resize for charts
+            window.addEventListener('resize', function() {
+                if (pnlChart) pnlChart.resize();
+                if (winLossChart) winLossChart.resize();
+                if (balanceChart) balanceChart.resize();
+            });
+            
+            // Handle visibility change to pause/resume updates
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    // Pause updates when tab is hidden
+                    Object.values(updateIntervals).forEach(clearInterval);
+                } else {
+                    // Resume updates when tab becomes visible
+                    if (isConnected) {
+                        startDataUpdates();
+                    }
+                }
+            });
+            
+            // Initialize form dependencies
+            togglePriceField();
+            updateStrikeSuggestions();
+        }
+
+        // Update current time
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            updateElement('current-time', timeString);
+        }
+
+        // Utility function to update element content
         function updateElement(elementId, value) {
             const element = document.getElementById(elementId);
             if (element) {
@@ -1207,15 +1881,24 @@
             }
         }
 
-        function showNotification(message, type = 'info') {
+        // Enhanced notification system
+        function showNotification(message, type = 'info', duration = 5000) {
             // Remove existing notifications
             const existingNotifications = document.querySelectorAll('.notification');
-            existingNotifications.forEach(notif => notif.remove());
+            existingNotifications.forEach(notif => {
+                notif.classList.remove('show');
+                setTimeout(() => notif.remove(), 300);
+            });
             
-            // Create notification element
+            // Create new notification
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
-            notification.textContent = message;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>${getNotificationIcon(type)}</span>
+                    <span>${message}</span>
+                </div>
+            `;
             
             document.body.appendChild(notification);
             
@@ -1227,22 +1910,71 @@
             // Animate out
             setTimeout(() => {
                 notification.classList.remove('show');
-                setTimeout(() => notification.remove(), 300);
-            }, 4000);
+                setTimeout(() => notification.remove(), 400);
+            }, duration);
+        }
+
+        // Get notification icon based on type
+        function getNotificationIcon(type) {
+            switch (type) {
+                case 'success': return '✅';
+                case 'error': return '❌';
+                case 'warning': return '⚠️';
+                case 'info': return 'ℹ️';
+                default: return '📢';
+            }
         }
 
         // Start time updates
-        setInterval(updateTime, 1000);
-        updateTime();
+        setInterval(updateCurrentTime, 1000);
+        updateCurrentTime();
 
-        console.log('🎯 TradeMind AI Step 2 Dashboard loaded successfully!');
-        console.log('🚀 Features available:');
-        console.log('   ✅ Real trade execution');
-        console.log('   ✅ Live P&L tracking');
-        console.log('   ✅ Position management');
-        console.log('   ✅ Trade notifications');
-        console.log('   ✅ Auto-close functionality');
-        console.log('   ✅ Real-time data updates');
+        // Performance monitoring
+        let performanceMetrics = {
+            pageLoadTime: performance.now(),
+            apiCalls: 0,
+            successfulApiCalls: 0,
+            failedApiCalls: 0
+        };
+
+        // Log performance metrics
+        function logPerformanceMetrics() {
+            console.log('📊 TradeMind AI Dashboard Performance Metrics:');
+            console.log(`   Page Load Time: ${performanceMetrics.pageLoadTime.toFixed(2)}ms`);
+            console.log(`   API Calls: ${performanceMetrics.apiCalls}`);
+            console.log(`   Success Rate: ${((performanceMetrics.successfulApiCalls / performanceMetrics.apiCalls) * 100).toFixed(1)}%`);
+            console.log(`   Connection Status: ${isConnected ? 'Connected' : 'Disconnected'}`);
+            console.log(`   Trading Mode: ${tradingMode}`);
+        }
+
+        // Log performance metrics every 5 minutes
+        setInterval(logPerformanceMetrics, 300000);
+
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            console.error('🚨 Global error:', e.error);
+            showNotification('⚠️ An unexpected error occurred', 'error');
+        });
+
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('🚨 Unhandled promise rejection:', e.reason);
+            showNotification('⚠️ A network error occurred', 'warning');
+        });
+
+        // Initialize dashboard
+        console.log('🧠 TradeMind AI Professional Dashboard loaded successfully!');
+        console.log('🚀 Available Features:');
+        console.log('   ✅ Real-time trading execution');
+        console.log('   ✅ Live P&L tracking with charts');
+        console.log('   ✅ WebSocket real-time updates');
+        console.log('   ✅ AI trading signals');
+        console.log('   ✅ Advanced position management');
+        console.log('   ✅ Paper/Live trading modes');
+        console.log('   ✅ Professional notifications');
+        console.log('   ✅ Responsive design');
+        console.log('   ✅ Error recovery & demo mode');
+        console.log('🎯 Ready for professional trading!');
     </script>
 </body>
 </html>
