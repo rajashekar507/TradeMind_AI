@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2025-06-12T09:58:05.897363",
+    "trade_type": "TRADE_OPENED_BANKNIFTY",
+    "amount": -0.0,
+    "balance_before": 9509.18,
+    "balance_after": 9509.18,
+    "change": 0.0
+  },
+  {
+    "timestamp": "2025-06-12T09:58:07.901390",
+    "trade_type": "TRADE_OPENED_NIFTY",
+    "amount": -0.0,
+    "balance_before": 9509.18,
+    "balance_after": 9509.18,
+    "change": 0.0
+  }
+]

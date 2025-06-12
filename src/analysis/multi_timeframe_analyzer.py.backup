@@ -1,0 +1,139 @@
+"""
+Quick test script for Multi-Timeframe Analyzer
+Tests the fixes for data type issues
+"""
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+
+def test_yfinance_data():
+    """Test yfinance data fetching"""
+    print("🧪 Testing yfinance data fetch...")
+    
+    try:
+        # Method 1: Using Ticker.history (recommended)
+        ticker = yf.Ticker("^NSEI")
+        data = ticker.history(period="1d", interval="5m")
+        
+        print(f"✅ Data fetched successfully!")
+        print(f"   Shape: {data.shape}")
+        print(f"   Columns: {list(data.columns)}")
+        print(f"   Data types:\n{data.dtypes}")
+        print(f"\n   Last 3 rows:")
+        print(data.tail(3))
+        
+        # Test data access
+        close_prices = data['Close'].values
+        print(f"\n✅ Close prices extracted: {len(close_prices)} values")
+        print(f"   Last price: {close_prices[-1]:.2f}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+def test_sample_data_generation():
+    """Test sample data generation"""
+    print("\n🧪 Testing sample data generation...")
+    
+    try:
+        # Generate sample data
+        base_price = 25500
+        num_candles = 100
+        
+        prices = []
+        for i in range(num_candles):
+            open_price = base_price + np.random.randn() * 50
+            high = open_price + abs(np.random.randn() * 30)
+            low = open_price - abs(np.random.randn() * 30)
+            close = open_price + np.random.randn() * 20
+            volume = int(1000000 * np.random.uniform(0.5, 2.0))
+            
+            prices.append({
+                'Open': open_price,
+                'High': high,
+                'Low': low,
+                'Close': close,
+                'Volume': volume
+            })
+        
+        df = pd.DataFrame(prices)
+        print(f"✅ Sample data created successfully!")
+        print(f"   Shape: {df.shape}")
+        print(f"   Data types:\n{df.dtypes}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+def test_indicator_calculations():
+    """Test indicator calculations with proper data types"""
+    print("\n🧪 Testing indicator calculations...")
+    
+    try:
+        # Create test data
+        prices = np.array([100, 102, 101, 103, 105, 104, 106, 108, 107, 109, 
+                          111, 110, 112, 114, 113, 115, 117, 116, 118, 120], dtype=np.float64)
+        
+        # Test RSI calculation
+        deltas = np.diff(prices)
+        seed = deltas[:14]
+        up = seed[seed >= 0].sum() / 14
+        down = -seed[seed < 0].sum() / 14
+        
+        if down > 0:
+            rs = up / down
+            rsi = 100 - (100 / (1 + rs))
+            print(f"✅ RSI calculated: {rsi:.2f}")
+        
+        # Test pandas operations
+        prices_series = pd.Series(prices)
+        sma = prices_series.rolling(window=5).mean().iloc[-1]
+        print(f"✅ SMA calculated: {sma:.2f}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+def main():
+    """Run all tests"""
+    print("🚀 Testing Multi-Timeframe Analyzer Components")
+    print("=" * 50)
+    
+    # Run tests
+    tests = [
+        ("YFinance Data Fetch", test_yfinance_data),
+        ("Sample Data Generation", test_sample_data_generation),
+        ("Indicator Calculations", test_indicator_calculations)
+    ]
+    
+    results = []
+    for test_name, test_func in tests:
+        print(f"\n{'='*50}")
+        success = test_func()
+        results.append((test_name, success))
+    
+    # Summary
+    print(f"\n{'='*50}")
+    print("📊 TEST SUMMARY:")
+    print("=" * 50)
+    
+    for test_name, success in results:
+        status = "✅ PASSED" if success else "❌ FAILED"
+        print(f"{test_name}: {status}")
+    
+    all_passed = all(success for _, success in results)
+    
+    if all_passed:
+        print("\n🎉 All tests passed! The analyzer should work correctly now.")
+    else:
+        print("\n⚠️ Some tests failed. Check the errors above.")
+
+if __name__ == "__main__":
+    main()

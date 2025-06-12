@@ -1,0 +1,497 @@
+"""
+TradeMind_AI: Auto Error Detection & Self-Healing System
+Automatically detects, logs, and fixes common errors
+"""
+
+import os
+import sys
+import json
+import time
+import traceback
+import logging
+from datetime import datetime
+from typing import Dict, List, Any, Callable
+import subprocess
+import requests
+from functools import wraps
+import threading
+import queue
+
+class AutoErrorHandler:
+    def __init__(self):
+        """Initialize Auto Error Handler with self-healing capabilities"""
+        print("🛡️ Initializing Auto Error Handler...")
+        
+        # Setup logging
+        self.log_dir = "logs"
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+            
+        self.setup_logging()
+        
+        # Error tracking
+        self.error_history = []
+        self.recovery_actions = {}
+        self.max_retries = 3
+        self.retry_delay = 5  # seconds
+        
+        # Self-healing configurations
+        self.healing_rules = {
+            'ConnectionError': self._heal_connection_error,
+            'ImportError': self._heal_import_error,
+            'FileNotFoundError': self._heal_file_error,
+            'JSONDecodeError': self._heal_json_error,
+            'APIError': self._heal_api_error,
+            'InsufficientBalance': self._heal_balance_error,
+            'RateLimitError': self._heal_rate_limit,
+            'DataError': self._heal_data_error
+        }
+        
+        # System health monitoring
+        self.health_check_interval = 300  # 5 minutes
+        self.critical_errors = []
+        self.system_healthy = True
+        
+        # Start health monitor
+        self.start_health_monitor()
+        
+        print("✅ Auto Error Handler ready with self-healing!")
+    
+    def setup_logging(self):
+        """Setup comprehensive logging system"""
+        log_file = os.path.join(self.log_dir, f"trademind_{datetime.now().strftime('%Y%m%d')}.log")
+        
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        
+        self.logger = logging.getLogger('TradeMind_AI')
+    
+    def safe_execute(self, func: Callable, *args, **kwargs):
+        """Execute function with automatic error handling and retry"""
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_error = None
+            
+            for attempt in range(self.max_retries):
+                try:
+                    # Execute function
+                    result = func(*args, **kwargs)
+                    
+                    # Log success after retry
+                    if attempt > 0:
+                        self.logger.info(f"✅ {func.__name__} succeeded after {attempt} retries")
+                    
+                    return result
+                    
+                except Exception as e:
+                    last_error = e
+                    error_type = type(e).__name__
+                    
+                    # Log error
+                    self.log_error(func.__name__, e, attempt)
+                    
+                    # Try self-healing
+                    if error_type in self.healing_rules:
+                        self.logger.info(f"🔧 Attempting self-healing for {error_type}")
+                        healing_result = self.healing_rules[error_type](e, func, args, kwargs)
+                        
+                        if healing_result:
+                            self.logger.info(f"✅ Self-healing successful for {error_type}")
+                            continue
+                    
+                    # Wait before retry
+                    if attempt < self.max_retries - 1:
+                        self.logger.warning(f"⏳ Retrying in {self.retry_delay} seconds...")
+                        time.sleep(self.retry_delay)
+                    
+            # All retries failed
+            self.handle_critical_error(func.__name__, last_error)
+            raise last_error
+        
+        return wrapper
+    
+    def log_error(self, function_name: str, error: Exception, attempt: int):
+        """Log error with full context"""
+        error_data = {
+            'timestamp': datetime.now().isoformat(),
+            'function': function_name,
+            'error_type': type(error).__name__,
+            'error_message': str(error),
+            'attempt': attempt,
+            'traceback': traceback.format_exc()
+        }
+        
+        # Add to history
+        self.error_history.append(error_data)
+        
+        # Log to file
+        self.logger.error(f"Error in {function_name}: {error}")
+        
+        # Save error history
+        self.save_error_history()
+    
+    def _heal_connection_error(self, error, func, args, kwargs):
+        """Heal connection errors"""
+        self.logger.info("🔧 Healing connection error...")
+        
+        # Check internet connection
+        if not self.check_internet_connection():
+            self.logger.error("❌ No internet connection")
+            # Wait for connection
+            for i in range(30):  # Wait up to 5 minutes
+                time.sleep(10)
+                if self.check_internet_connection():
+                    self.logger.info("✅ Internet connection restored")
+                    return True
+            return False
+        
+        # Check API endpoints
+        if 'dhan' in str(error).lower():
+            # Refresh Dhan connection
+            self.logger.info("🔄 Refreshing Dhan API connection...")
+            # Re-initialize Dhan client
+            os.environ['DHAN_RECONNECT'] = 'true'
+            return True
+        
+        return False
+    
+    def _heal_import_error(self, error, func, args, kwargs):
+        """Heal import errors by installing missing packages"""
+        missing_module = str(error).split("'")[1]
+        self.logger.info(f"📦 Installing missing module: {missing_module}")
+        
+        try:
+            # Map common module names to pip packages
+            package_map = {
+                'sklearn': 'scikit-learn',
+                'cv2': 'opencv-python',
+                'bs4': 'beautifulsoup4',
+                'PIL': 'Pillow'
+            }
+            
+            package_name = package_map.get(missing_module, missing_module)
+            
+            # Install package
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', package_name])
+            
+            self.logger.info(f"✅ Successfully installed {package_name}")
+            return True
+            
+        except Exception as install_error:
+            self.logger.error(f"❌ Failed to install {missing_module}: {install_error}")
+            return False
+    
+    def _heal_file_error(self, error, func, args, kwargs):
+        """Heal file not found errors"""
+        file_path = str(error).split("'")[1] if "'" in str(error) else ""
+        
+        if not file_path:
+            return False
+        
+        self.logger.info(f"📁 Creating missing file/directory: {file_path}")
+        
+        try:
+            # Create directory if it's a directory
+            if '.' not in os.path.basename(file_path):
+                os.makedirs(file_path, exist_ok=True)
+            else:
+                # Create file with default content
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                
+                # Create appropriate default content
+                if file_path.endswith('.json'):
+                    with open(file_path, 'w') as f:
+                        json.dump({}, f)
+                elif file_path.endswith('.csv'):
+                    with open(file_path, 'w') as f:
+                        f.write("timestamp,value\n")
+                else:
+                    open(file_path, 'a').close()
+            
+            self.logger.info(f"✅ Created {file_path}")
+            return True
+            
+        except Exception as create_error:
+            self.logger.error(f"❌ Failed to create {file_path}: {create_error}")
+            return False
+    
+    def _heal_json_error(self, error, func, args, kwargs):
+        """Heal JSON decode errors"""
+        self.logger.info("🔧 Healing JSON error...")
+        
+        # Try to identify the problematic JSON file
+        if hasattr(error, 'doc'):
+            # Create default JSON structure
+            default_data = {
+                'trades': [],
+                'summary': {},
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            # Find JSON files in args/kwargs
+            for arg in args + tuple(kwargs.values()):
+                if isinstance(arg, str) and arg.endswith('.json'):
+                    try:
+                        # Backup corrupted file
+                        backup_path = arg + '.backup'
+                        if os.path.exists(arg):
+                            os.rename(arg, backup_path)
+                        
+                        # Create new file
+                        with open(arg, 'w') as f:
+                            json.dump(default_data, f, indent=2)
+                        
+                        self.logger.info(f"✅ Repaired JSON file: {arg}")
+                        return True
+                    except:
+                        pass
+        
+        return False
+    
+    def _heal_api_error(self, error, func, args, kwargs):
+        """Heal API errors"""
+        self.logger.info("🔧 Healing API error...")
+        
+        # Rate limit handling
+        if 'rate limit' in str(error).lower():
+            wait_time = 60  # Wait 1 minute
+            self.logger.info(f"⏳ Rate limit hit, waiting {wait_time} seconds...")
+            time.sleep(wait_time)
+            return True
+        
+        # Token expiry handling
+        if 'unauthorized' in str(error).lower() or 'token' in str(error).lower():
+            self.logger.warning("🔑 API token may have expired")
+            # Signal need for token refresh
+            os.environ['REFRESH_TOKEN'] = 'true'
+            return True
+        
+        return False
+    
+    def _heal_balance_error(self, error, func, args, kwargs):
+        """Handle insufficient balance errors"""
+        self.logger.warning("💰 Insufficient balance detected")
+        
+        # Reduce position size
+        if 'quantity' in kwargs:
+            kwargs['quantity'] = max(1, kwargs['quantity'] // 2)
+            self.logger.info(f"📉 Reduced position size to {kwargs['quantity']}")
+            return True
+        
+        # Skip trade
+        return False
+    
+    def _heal_rate_limit(self, error, func, args, kwargs):
+        """Handle rate limit errors with exponential backoff"""
+        wait_times = [30, 60, 120, 300]  # 30s, 1m, 2m, 5m
+        
+        for i, wait_time in enumerate(wait_times):
+            self.logger.info(f"⏳ Rate limit backoff: waiting {wait_time} seconds...")
+            time.sleep(wait_time)
+            
+            # Test if rate limit cleared
+            try:
+                # Make a simple test request
+                return True
+            except:
+                continue
+        
+        return False
+    
+    def _heal_data_error(self, error, func, args, kwargs):
+        """Heal data-related errors"""
+        self.logger.info("🔧 Healing data error...")
+        
+        # Clear cache
+        cache_dirs = ['__pycache__', '.cache', 'temp']
+        for cache_dir in cache_dirs:
+            if os.path.exists(cache_dir):
+                import shutil
+                shutil.rmtree(cache_dir)
+                self.logger.info(f"🗑️ Cleared {cache_dir}")
+        
+        return True
+    
+    def check_internet_connection(self):
+        """Check internet connectivity"""
+        try:
+            requests.get('https://www.google.com', timeout=5)
+            return True
+        except:
+            return False
+    
+    def handle_critical_error(self, function_name: str, error: Exception):
+        """Handle critical errors that couldn't be healed"""
+        critical_data = {
+            'timestamp': datetime.now().isoformat(),
+            'function': function_name,
+            'error': str(error),
+            'type': type(error).__name__
+        }
+        
+        self.critical_errors.append(critical_data)
+        
+        # Send alert
+        self.send_critical_alert(critical_data)
+        
+        # Check if system should shut down
+        if len(self.critical_errors) > 5:
+            self.logger.critical("⚠️ Too many critical errors - shutting down for safety")
+            self.system_healthy = False
+    
+    def send_critical_alert(self, error_data: Dict):
+        """Send critical error alert"""
+        # Send to Telegram if configured
+        telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        
+        if telegram_token and telegram_chat_id:
+            message = f"""
+🚨 <b>CRITICAL ERROR</b>
+
+Function: {error_data['function']}
+Error: {error_data['error']}
+Type: {error_data['type']}
+Time: {error_data['timestamp']}
+
+System may need manual intervention!
+"""
+            
+            try:
+                url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                data = {
+                    'chat_id': telegram_chat_id,
+                    'text': message,
+                    'parse_mode': 'HTML'
+                }
+                requests.post(url, data=data)
+            except:
+                pass
+    
+    def start_health_monitor(self):
+        """Start system health monitoring"""
+        def monitor():
+            while self.system_healthy:
+                time.sleep(self.health_check_interval)
+                self.perform_health_check()
+        
+        monitor_thread = threading.Thread(target=monitor, daemon=True)
+        monitor_thread.start()
+    
+    def perform_health_check(self):
+        """Perform system health check"""
+        health_status = {
+            'timestamp': datetime.now().isoformat(),
+            'errors_last_hour': self.get_error_count_last_hour(),
+            'critical_errors': len(self.critical_errors),
+            'system_healthy': self.system_healthy,
+            'checks': {}
+        }
+        
+        # Check disk space
+        import shutil
+        stat = shutil.disk_usage(".")
+        health_status['checks']['disk_space'] = {
+            'free_gb': stat.free / (1024**3),
+            'status': 'OK' if stat.free > 1024**3 else 'WARNING'
+        }
+        
+        # Check memory
+        import psutil
+        memory = psutil.virtual_memory()
+        health_status['checks']['memory'] = {
+            'available_gb': memory.available / (1024**3),
+            'percent_used': memory.percent,
+            'status': 'OK' if memory.percent < 90 else 'WARNING'
+        }
+        
+        # Check API connectivity
+        health_status['checks']['api_connection'] = {
+            'internet': self.check_internet_connection(),
+            'status': 'OK' if self.check_internet_connection() else 'ERROR'
+        }
+        
+        # Save health status
+        health_file = os.path.join(self.log_dir, 'health_status.json')
+        with open(health_file, 'w') as f:
+            json.dump(health_status, f, indent=2)
+        
+        # Alert if unhealthy
+        if health_status['checks']['disk_space']['status'] == 'WARNING':
+            self.logger.warning("⚠️ Low disk space detected")
+        
+        if health_status['checks']['memory']['percent_used'] > 90:
+            self.logger.warning("⚠️ High memory usage detected")
+    
+    def get_error_count_last_hour(self):
+        """Get error count in last hour"""
+        one_hour_ago = datetime.now().timestamp() - 3600
+        recent_errors = [
+            e for e in self.error_history 
+            if datetime.fromisoformat(e['timestamp']).timestamp() > one_hour_ago
+        ]
+        return len(recent_errors)
+    
+    def save_error_history(self):
+        """Save error history to file"""
+        history_file = os.path.join(self.log_dir, 'error_history.json')
+        
+        # Keep only last 1000 errors
+        self.error_history = self.error_history[-1000:]
+        
+        with open(history_file, 'w') as f:
+            json.dump(self.error_history, f, indent=2, default=str)
+    
+    def get_error_summary(self):
+        """Get summary of errors"""
+        if not self.error_history:
+            return "No errors recorded"
+        
+        # Count by type
+        error_types = {}
+        for error in self.error_history:
+            error_type = error['error_type']
+            error_types[error_type] = error_types.get(error_type, 0) + 1
+        
+        # Sort by frequency
+        sorted_errors = sorted(error_types.items(), key=lambda x: x[1], reverse=True)
+        
+        summary = "ERROR SUMMARY:\n"
+        summary += "="*50 + "\n"
+        for error_type, count in sorted_errors[:10]:
+            summary += f"{error_type}: {count} occurrences\n"
+        
+        return summary
+
+# Decorator for easy integration
+def auto_heal(func):
+    """Decorator to add auto-healing to any function"""
+    handler = AutoErrorHandler()
+    return handler.safe_execute(func)
+
+# Global error handler instance
+error_handler = AutoErrorHandler()
+
+if __name__ == "__main__":
+    # Test the error handler
+    print("🧪 Testing Auto Error Handler...")
+    
+    @auto_heal
+    def test_function():
+        # This will cause an error
+        import non_existent_module
+    
+    try:
+        test_function()
+    except:
+        pass
+    
+    # Show error summary
+    print("\n" + error_handler.get_error_summary())
+    print("\n✅ Auto Error Handler ready for integration!")

@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMind AI - Step 2: Complete Trading Dashboard</title>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary: #1e40af;
+            --secondary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 1rem 2rem;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .system-status {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        
+        /* Main Layout */
+        .main-container {
+            margin-top: 80px;
+            padding: 2rem;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .chart-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+        
+        .small-chart {
+            height: 300px;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .card-icon {
+            font-size: 1.5rem;
+        }
+        
+        /* Metrics */
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+            color: var(--success);
+        }
+        
+        .metric-change {
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .positive { color: var(--success); }
+        .negative { color: var(--danger); }
+        .neutral { color: var(--text-secondary); }
+        
+        /* Trading Mode Toggle */
+        .mode-toggle {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .mode-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .mode-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-secondary);
+        }
+        
+        .mode-btn.active {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        /* Market Data Ticker */
+        .market-ticker {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            overflow: hidden;
+        }
+        
+        .ticker-content {
+            display: flex;
+            gap: 2rem;
+            animation: scroll-ticker 30s linear infinite;
+        }
+        
+        @keyframes scroll-ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+        
+        /* Trades Table */
+        .trades-table {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            margin-bottom: 2rem;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            color: var(--text-primary);
+        }
+        
+        .table th {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        
+        /* Quick Trade Section */
+        .quick-trade {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .trade-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-group select,
+        .form-group input {
+            padding: 0.75rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .execute-btn {
+            padding: 1rem 2rem;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            grid-column: 1 / -1;
+        }
+        
+        .execute-btn:hover {
+            background: var(--primary);
+            transform: translateY(-1px);
+        }
+        
+        .execute-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+            max-width: 350px;
+            font-size: 0.9rem;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .notification.error {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .notification.warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .notification.info {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        /* Action Buttons */
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 0 0.25rem;
+        }
+        
+        .close-btn {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .close-btn:hover {
+            background: #dc2626;
+        }
+        
+        /* Loading State */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .loading::after {
+            content: "Updating...";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--secondary);
+            font-weight: bold;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .main-container {
+                padding: 1rem;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-wrapper {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                🧠 TradeMind AI - Step 2
+            </div>
+            <div class="system-status">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>System Online</span>
+                </div>
+                <div class="status-indicator">
+                    <span>Market Open</span>
+                </div>
+                <div class="status-indicator">
+                    <span id="current-time">--:--:--</span>
+                </div>
+                <div class="status-indicator">
+                    <span id="market-status">NIFTY: --</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Trading Mode Toggle -->
+        <div class="mode-toggle">
+            <h2>Trading Mode</h2>
+            <div class="mode-buttons">
+                <button class="mode-btn active">📝 Paper Trading</button>
+                <button class="mode-btn">🔥 Live Trading</button>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                Current mode: <span style="color: orange;">PAPER</span>
+            </div>
+        </div>
+
+        <!-- Market Ticker -->
+        <div class="market-ticker">
+            <div class="ticker-content" id="market-ticker">
+                <div class="ticker-item">📈 NIFTY: 25,450 (+0.5%)</div>
+                <div class="ticker-item">📊 BANKNIFTY: 57,200 (-0.2%)</div>
+                <div class="ticker-item">💰 VIX: 15.8 (+2.1%)</div>
+                <div class="ticker-item">🌍 SENSEX: 84,250 (+0.3%)</div>
+                <div class="ticker-item">🔥 FINNIFTY: 24,800 (+0.7%)</div>
+            </div>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div class="grid">
+            <!-- Account Balance -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Account Balance</div>
+                    <div class="card-icon">💰</div>
+                </div>
+                <div class="metric-value" id="account-balance">₹0</div>
+                <div class="metric-change neutral">
+                    Available: <span id="available-balance">₹0</span>
+                </div>
+            </div>
+
+            <!-- Today's P&L -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Today's P&L</div>
+                    <div class="card-icon">📊</div>
+                </div>
+                <div class="metric-value" id="daily-pnl">₹0</div>
+                <div class="metric-change neutral" id="pnl-percentage">0.00%</div>
+            </div>
+
+            <!-- Open Positions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Open Positions</div>
+                    <div class="card-icon">📈</div>
+                </div>
+                <div class="metric-value" id="open-positions">0</div>
+                <div class="metric-change neutral">
+                    Trades Today: <span id="trades-today">0</span>
+                </div>
+            </div>
+
+            <!-- Win Rate -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Win Rate</div>
+                    <div class="card-icon">🎯</div>
+                </div>
+                <div class="metric-value" id="win-rate">0%</div>
+                <div class="metric-change neutral">
+                    <span id="win-loss">0W / 0L</span>
+                </div>
+            </div>
+
+            <!-- Total Trades -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Total Trades</div>
+                    <div class="card-icon">🔢</div>
+                </div>
+                <div class="metric-value" id="total-trades">0</div>
+                <div class="metric-change neutral">
+                    Active: <span id="active-trades">0</span>
+                </div>
+            </div>
+
+            <!-- Best Trade -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Best Trade</div>
+                    <div class="card-icon">🏆</div>
+                </div>
+                <div class="metric-value positive" id="best-trade">₹0</div>
+                <div class="metric-change neutral">
+                    Worst: <span id="worst-trade">₹0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-grid">
+            <!-- P&L Chart -->
+            <div class="chart-container">
+                <div class="chart-title">📈 P&L Performance Chart</div>
+                <div class="chart-wrapper">
+                    <canvas id="pnlChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Win/Loss Pie Chart -->
+            <div class="chart-container">
+                <div class="chart-title">🎯 Win/Loss Distribution</div>
+                <div class="chart-wrapper small-chart">
+                    <canvas id="winLossChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Balance History Chart -->
+        <div class="chart-container">
+            <div class="chart-title">💰 Portfolio Balance History</div>
+            <div class="chart-wrapper">
+                <canvas id="balanceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Trades Table -->
+        <div class="trades-table">
+            <h2 style="margin-bottom: 1rem;">📋 Recent Trades</h2>
+            <div style="overflow-x: auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Symbol</th>
+                            <th>Strike</th>
+                            <th>Type</th>
+                            <th>Action</th>
+                            <th>Quantity</th>
+                            <th>Entry Price</th>
+                            <th>Current Price</th>
+                            <th>P&L</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody">
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-secondary);">
+                                Loading trades data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Trade Section -->
+        <div class="quick-trade">
+            <h2 style="margin-bottom: 1rem;">⚡ Quick Trade</h2>
+            <div class="trade-form">
+                <div class="form-group">
+                    <label>Symbol</label>
+                    <select id="symbol">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Strike Price</label>
+                    <input type="number" id="strike" placeholder="Strike Price">
+                </div>
+                
+                <div class="form-group">
+                    <label>Option Type</label>
+                    <select id="option-type">
+                        <option value="CE">Call (CE)</option>
+                        <option value="PE">Put (PE)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Action</label>
+                    <select id="action">
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Quantity (Lots)</label>
+                    <input type="number" id="quantity" value="1" min="1">
+                </div>
+                
+                <div class="form-group">
+                    <label>Order Type</label>
+                    <select id="order-type">
+                        <option value="MARKET">MARKET</option>
+                        <option value="LIMIT">LIMIT</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Price</label>
+                    <input type="number" id="price" placeholder="Price" step="0.05" required>
+                </div>
+                
+                <button class="execute-btn" onclick="executeTrade()">🚀 Execute Trade</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let pnlChart, winLossChart, balanceChart;
+        const API_BASE = 'http://localhost:5001/api';
+        let isConnected = false;
+        let updateIntervals = {};
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 TradeMind AI Step 2 Dashboard Loading...');
+            
+            // Initialize charts
+            initializePnLChart();
+            initializeWinLossChart();
+            initializeBalanceChart();
+            
+            // Test backend connection
+            testConnection().then(() => {
+                if (isConnected) {
+                    startDataUpdates();
+                    console.log('✅ Step 2 Dashboard fully connected!');
+                } else {
+                    showNotification('Backend not connected - running in demo mode', 'warning');
+                }
+            });
+        });
+
+        // Test backend connection
+        async function testConnection() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    isConnected = true;
+                    showNotification('Connected to Step 2 Backend!', 'success');
+                    console.log('✅ Backend connection successful');
+                    return true;
+                }
+            } catch (error) {
+                console.log('⚠️ Backend not available:', error.message);
+                isConnected = false;
+                return false;
+            }
+        }
+
+        // Start data updates
+        function startDataUpdates() {
+            // Initial data load
+            updateBalance();
+            updateTradingStats();
+            updateMarketData();
+            updateTrades();
+            updateCharts();
+            
+            // Set up intervals
+            updateIntervals.balance = setInterval(updateBalance, 10000); // 10 seconds
+            updateIntervals.marketData = setInterval(updateMarketData, 5000); // 5 seconds
+            updateIntervals.trades = setInterval(updateTrades, 10000); // 10 seconds
+            updateIntervals.charts = setInterval(updateCharts, 30000); // 30 seconds
+            updateIntervals.stats = setInterval(updateTradingStats, 15000); // 15 seconds
+            
+            console.log('⚡ Real-time updates active!');
+        }
+
+        // Update balance
+        async function updateBalance() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/balance`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    updateElement('account-balance', `₹${data.balance.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                    updateElement('available-balance', `₹${data.available.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                    
+                    const dailyPnlElement = document.getElementById('daily-pnl');
+                    if (dailyPnlElement) {
+                        dailyPnlElement.textContent = `₹${data.daily_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+                        dailyPnlElement.className = data.daily_pnl > 0 ? 'metric-value positive' : 
+                                                   data.daily_pnl < 0 ? 'metric-value negative' : 
+                                                   'metric-value neutral';
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Balance update failed:', error);
+            }
+        }
+
+        // Update trading statistics
+        async function updateTradingStats() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/trading_stats`);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const stats = result.data;
+                    
+                    updateElement('open-positions', stats.open_positions);
+                    updateElement('trades-today', stats.trades_today);
+                    updateElement('win-rate', `${stats.win_rate}%`);
+                    updateElement('win-loss', `${stats.winning_trades}W / ${stats.losing_trades}L`);
+                    updateElement('total-trades', stats.total_trades);
+                    updateElement('active-trades', stats.open_positions);
+                    updateElement('best-trade', `₹${stats.best_trade.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                    updateElement('worst-trade', `₹${stats.worst_trade.toLocaleString('en-IN', {minimumFractionDigits: 2})}`);
+                }
+            } catch (error) {
+                console.error('❌ Trading stats update failed:', error);
+            }
+        }
+
+        // Update market data
+        async function updateMarketData() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/market_data`);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const marketData = result.data;
+                    
+                    // Update market status in header
+                    const marketStatusElement = document.getElementById('market-status');
+                    if (marketStatusElement && marketData.NIFTY) {
+                        marketStatusElement.textContent = `NIFTY: ${marketData.NIFTY.price}`;
+                    }
+                    
+                    // Update market ticker
+                    updateMarketTicker(marketData);
+                }
+            } catch (error) {
+                console.error('❌ Market data update failed:', error);
+            }
+        }
+
+        // Update market ticker
+        function updateMarketTicker(marketData) {
+            const tickerElement = document.getElementById('market-ticker');
+            if (!tickerElement) return;
+            
+            let tickerHTML = '';
+            
+            Object.entries(marketData).forEach(([symbol, data]) => {
+                const changeClass = data.change > 0 ? 'positive' : data.change < 0 ? 'negative' : 'neutral';
+                const changeSign = data.change > 0 ? '+' : '';
+                
+                tickerHTML += `
+                    <div class="ticker-item">
+                        <span class="ticker-symbol">${symbol}:</span>
+                        <span class="ticker-price">${data.price}</span>
+                        <span class="ticker-change ${changeClass}">(${changeSign}${data.change}%)</span>
+                    </div>
+                `;
+            });
+            
+            tickerElement.innerHTML = tickerHTML;
+        }
+
+        // Update trades
+        async function updateTrades() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/trades`);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    updateTradesTable(result.data);
+                }
+            } catch (error) {
+                console.error('❌ Trades update failed:', error);
+            }
+        }
+
+        // Update trades table
+        function updateTradesTable(trades) {
+            const tbody = document.getElementById('trades-tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: var(--text-secondary);">No trades found</td></tr>';
+                return;
+            }
+            
+            // Show latest trades first
+            trades.slice(-10).reverse().forEach(trade => {
+                const row = document.createElement('tr');
+                const time = new Date(trade.timestamp).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'});
+                const pnlClass = trade.pnl > 0 ? 'positive' : trade.pnl < 0 ? 'negative' : 'neutral';
+                
+                let actionButton = '';
+                if (trade.status === 'OPEN') {
+                    actionButton = `<button class="action-btn close-btn" onclick="closeTrade('${trade.trade_id}')">Close</button>`;
+                } else {
+                    actionButton = `<span style="color: var(--text-secondary);">-</span>`;
+                }
+                
+                row.innerHTML = `
+                    <td>${time}</td>
+                    <td>${trade.symbol}</td>
+                    <td>${trade.strike || 'N/A'}</td>
+                    <td>${trade.option_type || 'N/A'}</td>
+                    <td>${trade.action}</td>
+                    <td>${trade.quantity}</td>
+                    <td>₹${trade.entry_price}</td>
+                    <td>₹${trade.current_price || trade.entry_price}</td>
+                    <td class="${pnlClass}">₹${trade.pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                    <td><span style="color: ${trade.status === 'OPEN' ? '#f59e0b' : '#10b981'}">${trade.status}</span></td>
+                    <td>${actionButton}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Execute trade
+        async function executeTrade() {
+            if (!isConnected) {
+                showNotification('Backend not connected - cannot execute trade', 'error');
+                return;
+            }
+            
+            // Get form data
+            const tradeParams = {
+                symbol: document.getElementById('symbol').value,
+                strike: document.getElementById('strike').value,
+                option_type: document.getElementById('option-type').value,
+                action: document.getElementById('action').value,
+                quantity: parseInt(document.getElementById('quantity').value) || 1,
+                order_type: document.getElementById('order-type').value,
+                price: parseFloat(document.getElementById('price').value)
+            };
+            
+            // Validate required fields
+            if (!tradeParams.strike) {
+                showNotification('Please enter strike price', 'error');
+                return;
+            }
+            
+            if (!tradeParams.price || tradeParams.price <= 0) {
+                showNotification('Please enter valid price', 'error');
+                return;
+            }
+            
+            try {
+                // Show loading state
+                const executeBtn = document.querySelector('.execute-btn');
+                const originalText = executeBtn.textContent;
+                executeBtn.textContent = '⏳ Executing...';
+                executeBtn.disabled = true;
+                
+                // Execute trade via API
+                const response = await fetch(`${API_BASE}/execute_trade`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(tradeParams)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    
+                    // Clear form
+                    document.getElementById('strike').value = '';
+                    document.getElementById('price').value = '';
+                    
+                    // Refresh data
+                    setTimeout(() => {
+                        updateTradingStats();
+                        updateTrades();
+                        updateBalance();
+                    }, 1000);
+                    
+                } else {
+                    showNotification(result.message, 'error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Trade execution failed:', error);
+                showNotification('Trade execution failed - check connection', 'error');
+            } finally {
+                // Reset button
+                const executeBtn = document.querySelector('.execute-btn');
+                executeBtn.textContent = originalText;
+                executeBtn.disabled = false;
+            }
+        }
+
+        // Close trade
+        async function closeTrade(tradeId) {
+            if (!isConnected) {
+                showNotification('Backend not connected', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/close_trade`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ trade_id: tradeId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    
+                    // Refresh data
+                    setTimeout(() => {
+                        updateTradingStats();
+                        updateTrades();
+                        updateBalance();
+                    }, 1000);
+                } else {
+                    showNotification(result.message, 'error');
+                }
+                
+            } catch (error) {
+                console.error('❌ Close trade failed:', error);
+                showNotification('Failed to close trade', 'error');
+            }
+        }
+
+        // Update charts
+        async function updateCharts() {
+            if (!isConnected) return;
+            
+            try {
+                // Update P&L chart
+                const pnlResponse = await fetch(`${API_BASE}/pnl_chart`);
+                const pnlData = await pnlResponse.json();
+                
+                if (pnlData.status === 'success' && pnlChart) {
+                    pnlChart.data.labels = pnlData.data.labels;
+                    pnlChart.data.datasets[0].data = pnlData.data.values;
+                    pnlChart.update('none');
+                }
+                
+                // Update portfolio chart
+                const portfolioResponse = await fetch(`${API_BASE}/portfolio_chart`);
+                const portfolioData = await portfolioResponse.json();
+                
+                if (portfolioData.status === 'success' && balanceChart) {
+                    balanceChart.data.labels = portfolioData.data.labels;
+                    balanceChart.data.datasets[0].data = portfolioData.data.values;
+                    balanceChart.update('none');
+                }
+                
+            } catch (error) {
+                console.error('❌ Chart update failed:', error);
+            }
+        }
+
+        // Initialize P&L Chart
+        function initializePnLChart() {
+            const ctx = document.getElementById('pnlChart').getContext('2d');
+            
+            pnlChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['9:15', '9:30', '9:45', '10:00', '10:15', '10:30', '10:45', '11:00'],
+                    datasets: [{
+                        label: 'P&L (₹)',
+                        data: [0, 150, -80, 200, 350, 180, 450, 320],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#10b981',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f8fafc',
+                                font: { size: 14 }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#cbd5e1' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: {
+                                color: '#cbd5e1',
+                                callback: function(value) {
+                                    return '₹' + value;
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        // Initialize Win/Loss Chart
+        function initializeWinLossChart() {
+            const ctx = document.getElementById('winLossChart').getContext('2d');
+            
+            winLossChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Winning Trades', 'Losing Trades', 'Breakeven'],
+                    datasets: [{
+                        data: [65, 25, 10],
+                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
+                        borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#f8fafc',
+                                padding: 20,
+                                font: { size: 12 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize Balance Chart
+        function initializeBalanceChart() {
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            
+            balanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'],
+                    datasets: [{
+                        label: 'Balance (₹)',
+                        data: [10000, 10150, 9950, 10300, 10450, 10200, 10650],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#f8fafc',
+                                font: { size: 14 }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#cbd5e1' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: {
+                                color: '#cbd5e1',
+                                callback: function(value) {
+                                    return '₹' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString();
+        }
+
+        // Utility functions
+        function updateElement(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            // Remove existing notifications
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(notif => notif.remove());
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            // Animate out
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+
+        // Start time updates
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        console.log('🎯 TradeMind AI Step 2 Dashboard loaded successfully!');
+        console.log('🚀 Features available:');
+        console.log('   ✅ Real trade execution');
+        console.log('   ✅ Live P&L tracking');
+        console.log('   ✅ Position management');
+        console.log('   ✅ Trade notifications');
+        console.log('   ✅ Auto-close functionality');
+        console.log('   ✅ Real-time data updates');
+    </script>
+</body>
+</html>

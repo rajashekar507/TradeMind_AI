@@ -1,0 +1,34 @@
+[
+  {
+    "timestamp": "2025-06-11T04:03:06.941004",
+    "trade_type": "TRADE_OPENED_BANKNIFTY",
+    "amount": -0.0,
+    "balance_before": 10010.18,
+    "balance_after": 10010.18,
+    "change": 0.0
+  },
+  {
+    "timestamp": "2025-06-11T04:03:08.971020",
+    "trade_type": "TRADE_OPENED_NIFTY",
+    "amount": -0.0,
+    "balance_before": 10010.18,
+    "balance_after": 10010.18,
+    "change": 0.0
+  },
+  {
+    "timestamp": "2025-06-11T07:41:07.013338",
+    "trade_type": "TRADE_OPENED_NIFTY",
+    "amount": -11250,
+    "balance_before": 10010.18,
+    "balance_after": -1239.8199999999997,
+    "change": -11250
+  },
+  {
+    "timestamp": "2025-06-11T07:43:55.219499",
+    "trade_type": "TRADE_OPENED_NIFTY",
+    "amount": -7500,
+    "balance_before": 10010.18,
+    "balance_after": 2510.1800000000003,
+    "change": -7500
+  }
+]

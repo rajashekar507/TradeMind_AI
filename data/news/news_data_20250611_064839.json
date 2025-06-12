@@ -1,0 +1,82 @@
+[
+  {
+    "title": "Nifty hits fresh all-time high of 25,150, Bank Nifty surges 2%",
+    "description": "Benchmark indices continued their winning streak with Nifty50 hitting a new record high backed by strong FII inflows and positive global cues.",
+    "sentiment": null,
+    "source": "Economic Times",
+    "url": "https://example.com/news/0",
+    "published": "2025-06-11T06:48:39.405441"
+  },
+  {
+    "title": "Foreign investors pump in Rs 3,500 crore in Indian equities",
+    "description": "FIIs turned net buyers after a brief selling spree, showing confidence in India growth story amid global uncertainty.",
+    "sentiment": null,
+    "source": "Moneycontrol",
+    "url": "https://example.com/news/1",
+    "published": "2025-06-11T04:48:39.405441"
+  },
+  {
+    "title": "RBI keeps repo rate unchanged at 6.5%, maintains accommodative stance",
+    "description": "The Reserve Bank of India maintained status quo on key policy rates while keeping accommodative stance to support growth.",
+    "sentiment": null,
+    "source": "Business Standard",
+    "url": "https://example.com/news/2",
+    "published": "2025-06-11T02:48:39.405441"
+  },
+  {
+    "title": "IT stocks lead market rally on strong Q3 earnings outlook",
+    "description": "IT heavyweights TCS, Infosys, and Wipro gained 2-3% after positive management commentary on deal pipeline.",
+    "sentiment": null,
+    "source": "Economic Times",
+    "url": "https://example.com/news/3",
+    "published": "2025-06-11T00:48:39.405441"
+  },
+  {
+    "title": "Crude oil prices surge 3% on Middle East tensions",
+    "description": "Global crude oil prices jumped on supply concerns, which could impact inflation and corporate margins.",
+    "sentiment": null,
+    "source": "Moneycontrol",
+    "url": "https://example.com/news/4",
+    "published": "2025-06-10T22:48:39.405441"
+  },
+  {
+    "title": "India VIX drops to 3-month low, indicates reduced volatility",
+    "description": "India VIX, the fear gauge, fell below 12 levels suggesting reduced market volatility and bullish sentiment.",
+    "sentiment": null,
+    "source": "Business Standard",
+    "url": "https://example.com/news/5",
+    "published": "2025-06-10T20:48:39.405441"
+  },
+  {
+    "title": "Banking stocks under pressure on rising NPA concerns",
+    "description": "Banking indices fell 1.5% as investors worried about asset quality amid rising interest rates.",
+    "sentiment": null,
+    "source": "Economic Times",
+    "url": "https://example.com/news/6",
+    "published": "2025-06-10T18:48:39.405441"
+  },
+  {
+    "title": "Options data suggests strong support for Nifty at 25,000",
+    "description": "Maximum Put OI at 25,000 strike indicates strong support, while 25,500 Call shows resistance.",
+    "sentiment": null,
+    "source": "Moneycontrol",
+    "url": "https://example.com/news/7",
+    "published": "2025-06-10T16:48:39.405441"
+  },
+  {
+    "title": "Global markets mixed ahead of US Fed policy decision",
+    "description": "Asian markets traded mixed as investors await Federal Reserve interest rate decision later this week.",
+    "sentiment": null,
+    "source": "Business Standard",
+    "url": "https://example.com/news/8",
+    "published": "2025-06-10T14:48:39.405441"
+  },
+  {
+    "title": "Auto stocks rally on strong monthly sales numbers",
+    "description": "Auto sector gained 2% after major manufacturers reported double-digit growth in monthly sales.",
+    "sentiment": null,
+    "source": "Economic Times",
+    "url": "https://example.com/news/9",
+    "published": "2025-06-10T12:48:39.405441"
+  }
+]

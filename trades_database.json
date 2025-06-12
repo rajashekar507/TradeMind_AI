@@ -1,0 +1,39 @@
+{
+  "trades": [
+    {
+      "trade_id": "TM_001",
+      "timestamp": "2025-06-12T09:15:00",
+      "symbol": "NIFTY",
+      "strike": 25500,
+      "option_type": "CE",
+      "action": "BUY",
+      "quantity": 1,
+      "entry_price": 150.25,
+      "current_price": 137.08,
+      "pnl": -987.75,
+      "status": "OPEN"
+    },
+    {
+      "trade_id": "TM_002",
+      "timestamp": "2025-06-12T09:30:00",
+      "symbol": "BANKNIFTY",
+      "strike": 57000,
+      "option_type": "PE",
+      "action": "BUY",
+      "quantity": 1,
+      "entry_price": 200.75,
+      "current_price": 185.25,
+      "pnl": -465.0,
+      "status": "CLOSED"
+    }
+  ],
+  "summary": {
+    "total_trades": 2,
+    "winning_trades": 0,
+    "losing_trades": 2,
+    "total_pnl": -1452.75,
+    "best_trade": -465.0,
+    "worst_trade": -987.75,
+    "last_updated": "2025-06-12T12:22:30.994353"
+  }
+}

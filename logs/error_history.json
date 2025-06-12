@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2025-06-11T08:42:20.635631",
+    "function": "test_function",
+    "error_type": "ModuleNotFoundError",
+    "error_message": "No module named 'non_existent_module'",
+    "attempt": 0,
+    "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 84, in wrapper\n    result = func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 488, in test_function\n    import non_existent_module\nModuleNotFoundError: No module named 'non_existent_module'\n"
+  },
+  {
+    "timestamp": "2025-06-11T08:42:25.665756",
+    "function": "test_function",
+    "error_type": "ModuleNotFoundError",
+    "error_message": "No module named 'non_existent_module'",
+    "attempt": 1,
+    "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 84, in wrapper\n    result = func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 488, in test_function\n    import non_existent_module\nModuleNotFoundError: No module named 'non_existent_module'\n"
+  },
+  {
+    "timestamp": "2025-06-11T08:42:30.670953",
+    "function": "test_function",
+    "error_type": "ModuleNotFoundError",
+    "error_message": "No module named 'non_existent_module'",
+    "attempt": 2,
+    "traceback": "Traceback (most recent call last):\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 84, in wrapper\n    result = func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"c:\\Users\\RAJASHEKAR REDDY\\OneDrive\\Desktop\\AI\\TradeMind_AI\\src\\analysis\\error_handler.py\", line 488, in test_function\n    import non_existent_module\nModuleNotFoundError: No module named 'non_existent_module'\n"
+  }
+]
