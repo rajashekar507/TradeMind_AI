@@ -12,6 +12,16 @@ import requests
 import threading
 import time
 
+# Import centralized constants - FIXED DUPLICATION  
+try:
+    from config.constants import LOT_SIZES, get_lot_size
+except ImportError:
+    # Alternative path for different execution contexts
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+    from config.constants import LOT_SIZES, get_lot_size
+
 class PortfolioManager:
     """Advanced portfolio management and performance tracking"""
     
@@ -56,17 +66,13 @@ class PortfolioManager:
         self.max_single_trade_risk = 0.005  # 0.5% max per trade
         self.max_daily_loss = self.total_capital * 0.03  # 3% daily stop loss
         
-        # UPDATED LOT SIZES AS PER SEBI GUIDELINES (June 2025)
-        self.lot_sizes = {
-            'NIFTY': 75,      # Changed from 25 on Dec 26, 2024
-            'BANKNIFTY': 30   # Changed from 15 on Dec 24, 2024
-        }
+        # REMOVED DUPLICATE LOT_SIZES - Now using centralized version from config.constants
         
         # Start automatic balance tracking
         self.auto_fetch_balance_schedule()
         
         print("✅ Portfolio Manager initialized!")
-        print(f"📦 Using updated lot sizes: NIFTY={self.lot_sizes['NIFTY']}, BANKNIFTY={self.lot_sizes['BANKNIFTY']}")
+        print(f"📦 Using centralized lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
         print(f"💰 Current Balance: ₹{self.available_capital:,.2f}")
         self.send_portfolio_alert(f"📊 TradeMind_AI Portfolio Manager is ONLINE!\n💰 Balance: ₹{self.available_capital:,.2f}")
 
@@ -247,15 +253,7 @@ class PortfolioManager:
         except Exception as e:
             print(f"❌ Error saving performance data: {e}")
 
-    def get_lot_size(self, symbol: str) -> int:
-        """Get correct lot size for symbol"""
-        if 'BANKNIFTY' in symbol.upper():
-            return self.lot_sizes['BANKNIFTY']
-        elif 'NIFTY' in symbol.upper():
-            return self.lot_sizes['NIFTY']
-        else:
-            # Default to NIFTY lot size
-            return self.lot_sizes['NIFTY']
+    # REMOVED DUPLICATE get_lot_size METHOD - Now using centralized version from config.constants
 
     def add_trade(self, trade_data: dict) -> None:
         """Add new trade to portfolio with balance update"""
@@ -263,8 +261,8 @@ class PortfolioManager:
             # Generate trade ID
             trade_id = f"TM_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Get correct lot size
-            lot_size = trade_data.get("lot_size", self.get_lot_size(trade_data.get("symbol", "")))
+            # Get correct lot size using centralized function - FIXED
+            lot_size = trade_data.get("lot_size", get_lot_size(trade_data.get("symbol", "")))
             
             # Complete trade data
             complete_trade = {
@@ -324,8 +322,8 @@ class PortfolioManager:
                     # Update current price
                     trade["current_price"] = current_price
                     
-                    # Get lot size
-                    lot_size = trade.get("lot_size", self.get_lot_size(trade["symbol"]))
+                    # Get lot size using centralized function - FIXED
+                    lot_size = trade.get("lot_size", get_lot_size(trade["symbol"]))
                     
                     # Calculate P&L
                     if trade["action"] == "BUY":
@@ -361,8 +359,8 @@ class PortfolioManager:
                     trade["exit_reason"] = exit_reason
                     trade["status"] = "CLOSED"
                     
-                    # Get lot size
-                    lot_size = trade.get("lot_size", self.get_lot_size(trade["symbol"]))
+                    # Get lot size using centralized function - FIXED
+                    lot_size = trade.get("lot_size", get_lot_size(trade["symbol"]))
                     
                     # Calculate final P&L
                     if trade["action"] == "BUY":
@@ -411,7 +409,7 @@ class PortfolioManager:
 
     def send_trade_confirmation(self, trade: dict) -> None:
         """Send trade confirmation to Telegram"""
-        lot_size = trade.get('lot_size', self.get_lot_size(trade['symbol']))
+        lot_size = trade.get('lot_size', get_lot_size(trade['symbol']))  # FIXED
         total_quantity = trade['quantity'] * lot_size
         
         message = f"""
@@ -441,7 +439,7 @@ class PortfolioManager:
     def send_trade_close_notification(self, trade: dict) -> None:
         """Send trade close notification"""
         profit_emoji = "🟢" if trade['pnl'] > 0 else "🔴"
-        lot_size = trade.get('lot_size', self.get_lot_size(trade['symbol']))
+        lot_size = trade.get('lot_size', get_lot_size(trade['symbol']))  # FIXED
         
         message = f"""
 {profit_emoji} <b>TRADE CLOSED</b>
@@ -541,9 +539,9 @@ class PortfolioManager:
 🚀 Best Trade: ₹{summary['best_trade']:.2f}
 💥 Worst Trade: ₹{summary['worst_trade']:.2f}
 
-📦 <b>Lot Sizes:</b>
-NIFTY: {self.lot_sizes['NIFTY']} units
-BANKNIFTY: {self.lot_sizes['BANKNIFTY']} units
+📦 <b>Centralized Lot Sizes:</b>
+NIFTY: {get_lot_size('NIFTY')} units
+BANKNIFTY: {get_lot_size('BANKNIFTY')} units
 
 💰 <b>Live Balance:</b> ₹{self.available_capital:,.2f}
 
@@ -581,14 +579,8 @@ BANKNIFTY: {self.lot_sizes['BANKNIFTY']} units
             # Update balance before trade
             self.available_capital = self.fetch_current_balance()
             
-            # Get correct lot size based on symbol
-            if 'NIFTY' in recommendation['symbol']:
-                if 'BANKNIFTY' in recommendation['symbol']:
-                    lot_size = self.lot_sizes['BANKNIFTY']  # 30
-                else:
-                    lot_size = self.lot_sizes['NIFTY']  # 75
-            else:
-                lot_size = recommendation.get('lot_size', self.lot_sizes['NIFTY'])
+            # Get correct lot size based on symbol using centralized function - FIXED
+            lot_size = get_lot_size(recommendation['symbol'])
             
             # Calculate position size based on risk
             risk_amount = self.total_capital * self.max_single_trade_risk
@@ -649,11 +641,41 @@ BANKNIFTY: {self.lot_sizes['BANKNIFTY']} units
         except Exception as e:
             print(f"❌ Error simulating paper trade: {e}")
 
+    def get_open_positions(self) -> list:
+        """Get list of open positions"""
+        return [t for t in self.trades_database["trades"] if t["status"] == "OPEN"]
+
+    def display_portfolio(self) -> None:
+        """Display portfolio in readable format"""
+        print("\n📊 PORTFOLIO OVERVIEW")
+        print("="*60)
+        
+        summary = self.get_portfolio_summary()
+        
+        print(f"💰 Available Capital: ₹{summary['available_capital']:,.2f}")
+        print(f"🔒 Allocated Capital: ₹{summary['allocated_capital']:,.2f}")
+        print(f"📈 Total P&L: ₹{summary['total_pnl']:,.2f}")
+        print(f"📊 Portfolio Return: {summary['portfolio_return']:.2f}%")
+        print(f"🎯 Open Positions: {summary['open_positions']}")
+        print(f"🏆 Win Rate: {summary['win_rate']:.1f}%")
+        print(f"📦 Lot Sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
+        
+        # Show open positions
+        open_positions = self.get_open_positions()
+        if open_positions:
+            print(f"\n📋 OPEN POSITIONS:")
+            for i, pos in enumerate(open_positions, 1):
+                print(f"  {i}. {pos['symbol']} {pos['strike']} {pos['option_type']} - ₹{pos['current_price']:.2f} (P&L: ₹{pos['pnl']:.2f})")
+        else:
+            print("\n📋 No open positions")
+        
+        print("="*60)
+
 def main():
     """Main function to run portfolio manager"""
     print("📊 TradeMind_AI Portfolio Manager - Enhanced Version")
     print("💰 Advanced P&L Tracking with Balance Monitoring")
-    print("📦 Using UPDATED lot sizes: NIFTY=75, BANKNIFTY=30")
+    print(f"📦 Using CENTRALIZED lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
     print("🚀 Movement Potential Analysis Integrated")
     
     try:

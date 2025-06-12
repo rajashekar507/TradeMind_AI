@@ -11,6 +11,15 @@ from dhanhq import DhanContext, dhanhq
 from dotenv import load_dotenv
 import requests
 
+# Import centralized constants - FIXED DUPLICATION
+try:
+    from config.constants import LOT_SIZES, get_lot_size
+except ImportError:
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+    from config.constants import LOT_SIZES, get_lot_size
+
 class FixedTradeExecutor:
     def __init__(self):
         """Initialize with proper lot sizes and balance tracking"""
@@ -22,11 +31,7 @@ class FixedTradeExecutor:
         dhan_context = DhanContext(self.client_id, self.access_token)
         self.dhan = dhanhq(dhan_context)
         
-        # CORRECT LOT SIZES (June 2025)
-        self.lot_sizes = {
-            'NIFTY': 75,
-            'BANKNIFTY': 30
-        }
+        # REMOVED DUPLICATE LOT_SIZES - Now using centralized version from config.constants
         
         # Files
         self.trades_file = "data/trades_database.json"
@@ -34,6 +39,9 @@ class FixedTradeExecutor:
         
         # Load current balance
         self.current_balance = self.fetch_live_balance()
+        
+        print(f"✅ Fixed Trade Executor initialized with centralized lot sizes!")
+        print(f"📦 NIFTY: {get_lot_size('NIFTY')}, BANKNIFTY: {get_lot_size('BANKNIFTY')}")
         
     def fetch_live_balance(self):
         """Get real balance from Dhan"""
@@ -54,8 +62,8 @@ class FixedTradeExecutor:
         entry_price = signal_data['entry_price']
         stop_loss = signal_data['stop_loss']
         
-        # Get lot size
-        lot_size = self.lot_sizes.get(symbol, 75)
+        # Get lot size using centralized function - FIXED
+        lot_size = get_lot_size(symbol)
         
         # Risk per trade (1% of capital)
         risk_amount = self.current_balance * 0.01
@@ -80,7 +88,7 @@ class FixedTradeExecutor:
         """Execute trade with proper logging"""
         # Calculate position size
         lots = self.calculate_position_size(signal_data)
-        lot_size = self.lot_sizes.get(signal_data['symbol'], 75)
+        lot_size = get_lot_size(signal_data['symbol'])  # FIXED - using centralized function
         
         # Calculate required capital
         required_capital = signal_data['entry_price'] * lots * lot_size
@@ -202,6 +210,7 @@ if __name__ == "__main__":
     print(f"\n📊 Attempting trade:")
     print(f"   Strike: {test_signal['strike']} {test_signal['option_type']}")
     print(f"   Entry Price: ₹{test_signal['entry_price']}")
+    print(f"   Lot Size: {get_lot_size(test_signal['symbol'])}")
     
     trade = executor.execute_trade(test_signal)
     
@@ -211,3 +220,6 @@ if __name__ == "__main__":
         print(f"   Quantity: {trade['quantity']} lots x {trade['lot_size']} = {trade['total_quantity']}")
         print(f"   Capital: ₹{trade['capital_allocated']:,.2f}")
         print(f"   Remaining Balance: ₹{executor.current_balance:,.2f}")
+        print(f"   Using Centralized Lot Size: {get_lot_size(test_signal['symbol'])} units")
+    else:
+        print(f"\n❌ Trade failed to execute")

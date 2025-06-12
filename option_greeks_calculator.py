@@ -20,6 +20,15 @@ from enum import Enum
 import math
 from scipy.stats import norm
 
+# Import centralized constants - FIXED DUPLICATION
+try:
+    from config.constants import LOT_SIZES, get_lot_size
+except ImportError:
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from config.constants import LOT_SIZES, get_lot_size
+
 # Import required modules
 try:
     from realtime_market_data import RealTimeMarketData
@@ -256,13 +265,7 @@ class OptionGreeksCalculator:
             'portfolio_delta': {'neutral': 0.05}  # ±5% for delta neutral
         }
         
-        # Lot sizes for different indices
-        self.lot_sizes = {
-            'NIFTY': 75,
-            'BANKNIFTY': 30,
-            'FINNIFTY': 40,
-            'MIDCPNIFTY': 75
-        }
+        # REMOVED DUPLICATE LOT_SIZES - Now using centralized version from config.constants
         
         # Background update control
         self.stop_updates = False
@@ -278,6 +281,7 @@ class OptionGreeksCalculator:
         }
         
         logger.info("✅ Option Greeks Calculator initialized!")
+        logger.info(f"📦 Using centralized lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
     
     def calculate_option_greeks(self, symbol: str, strike_price: float, option_type: str,
                               expiry_date: str, quantity: int = 1, 
@@ -338,8 +342,8 @@ class OptionGreeksCalculator:
                 OptionType.CALL if option_type == 'CE' else OptionType.PUT
             )
             
-            # Calculate dollar Greeks (per lot)
-            lot_size = self.lot_sizes.get(symbol, 75)
+            # Calculate dollar Greeks (per lot) - FIXED to use centralized lot size
+            lot_size = get_lot_size(symbol)
             delta_dollars = greeks['delta'] * lot_size * quantity
             gamma_dollars = greeks['gamma'] * lot_size * quantity * spot_price / 100
             theta_dollars = greeks['theta'] * lot_size * quantity
@@ -396,6 +400,7 @@ class OptionGreeksCalculator:
             
             logger.info(f"✅ Greeks calculated for {symbol} {strike_price} {option_type}")
             logger.info(f"   Delta: {greeks['delta']:.4f}, Gamma: {greeks['gamma']:.6f}, Theta: {greeks['theta']:.4f}")
+            logger.info(f"   Lot Size: {lot_size} (centralized)")
             
             return option_greeks
             
@@ -590,8 +595,8 @@ class OptionGreeksCalculator:
             
             # Strategy 1: Futures hedging
             if abs(delta_difference) > 0.1:
-                nifty_futures_delta = self.lot_sizes['NIFTY']
-                banknifty_futures_delta = self.lot_sizes['BANKNIFTY']
+                nifty_futures_delta = get_lot_size('NIFTY')  # FIXED - using centralized function
+                banknifty_futures_delta = get_lot_size('BANKNIFTY')  # FIXED - using centralized function
                 
                 nifty_lots_needed = -delta_difference / nifty_futures_delta
                 banknifty_lots_needed = -delta_difference / banknifty_futures_delta
@@ -604,13 +609,13 @@ class OptionGreeksCalculator:
                             'instrument': 'NIFTY_FUTURES',
                             'action': 'BUY' if nifty_lots_needed > 0 else 'SELL',
                             'lots': abs(round(nifty_lots_needed)),
-                            'cost_estimate': abs(nifty_lots_needed) * nifty_data.get('price', 25000) * self.lot_sizes['NIFTY'] * 0.001  # 0.1% cost
+                            'cost_estimate': abs(nifty_lots_needed) * nifty_data.get('price', 25000) * get_lot_size('NIFTY') * 0.001  # 0.1% cost
                         },
                         {
                             'instrument': 'BANKNIFTY_FUTURES',
                             'action': 'BUY' if banknifty_lots_needed > 0 else 'SELL',
                             'lots': abs(round(banknifty_lots_needed)),
-                            'cost_estimate': abs(banknifty_lots_needed) * banknifty_data.get('price', 55000) * self.lot_sizes['BANKNIFTY'] * 0.001
+                            'cost_estimate': abs(banknifty_lots_needed) * banknifty_data.get('price', 55000) * get_lot_size('BANKNIFTY') * 0.001
                         }
                     ]
                 })
@@ -642,6 +647,10 @@ class OptionGreeksCalculator:
                     'primary_strategy': strategies[0]['strategy'] if strategies else 'NO_HEDGE_NEEDED',
                     'hedge_frequency': 'DAILY' if abs(delta_difference) > 0.5 else 'WEEKLY',
                     'monitoring_required': abs(delta_difference) > 0.3
+                },
+                'lot_sizes': {
+                    'NIFTY': get_lot_size('NIFTY'),
+                    'BANKNIFTY': get_lot_size('BANKNIFTY')
                 },
                 'timestamp': datetime.now().isoformat()
             }
@@ -720,6 +729,12 @@ class OptionGreeksCalculator:
                     'needs_hedging': abs(portfolio_greeks.net_delta) > 0.5,
                     'hedge_urgency': self._assess_hedge_urgency(abs(portfolio_greeks.net_delta)),
                     'recommended_hedge': 'FUTURES' if abs(portfolio_greeks.net_delta) > 1.0 else 'OPTIONS'
+                },
+                'lot_sizes': {
+                    'NIFTY': get_lot_size('NIFTY'),
+                    'BANKNIFTY': get_lot_size('BANKNIFTY'),
+                    'FINNIFTY': get_lot_size('FINNIFTY'),
+                    'MIDCPNIFTY': get_lot_size('MIDCPNIFTY')
                 }
             }
             
@@ -929,7 +944,8 @@ class OptionGreeksCalculator:
                     symbol_greeks[symbol] = {
                         'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0,
                         'delta_dollars': 0, 'theta_dollars': 0, 'vega_dollars': 0,
-                        'position_count': 0, 'total_value': 0
+                        'position_count': 0, 'total_value': 0,
+                        'lot_size': get_lot_size(symbol)  # FIXED - using centralized function
                     }
                 
                 symbol_greeks[symbol]['delta'] += pg.delta * pg.quantity
@@ -1209,7 +1225,7 @@ class OptionGreeksCalculator:
             # Calculate options needed
             # Assume ATM option has delta of ~0.5
             options_delta = 0.5 if delta_difference > 0 else -0.5
-            lots_needed = abs(delta_difference) / (options_delta * self.lot_sizes['NIFTY'])
+            lots_needed = abs(delta_difference) / (options_delta * get_lot_size('NIFTY'))  # FIXED - using centralized function
             
             return {
                 'strategy': 'OPTIONS_HEDGE',
@@ -1220,8 +1236,8 @@ class OptionGreeksCalculator:
                         'action': 'BUY',
                         'lots': round(lots_needed),
                         'strike': atm_strike,
-                        'estimated_cost': round(lots_needed * 50 * self.lot_sizes['NIFTY']),  # Assume ₹50 premium
-                        'hedge_delta': round(lots_needed * options_delta * self.lot_sizes['NIFTY'], 4)
+                        'estimated_cost': round(lots_needed * 50 * get_lot_size('NIFTY')),  # Assume ₹50 premium
+                        'hedge_delta': round(lots_needed * options_delta * get_lot_size('NIFTY'), 4)
                     }
                 ]
             }
@@ -1537,6 +1553,7 @@ def main():
         print(f"   Option Price: ₹{nifty_call.option_price:.2f}")
         print(f"   Implied Vol: {nifty_call.implied_volatility:.2%}")
         print(f"   Days to Expiry: {nifty_call.days_to_expiry}")
+        print(f"   Lot Size: {get_lot_size('NIFTY')} (centralized)")
         
         print(f"\n   📊 Greeks:")
         print(f"      Delta: {nifty_call.delta:.4f} (₹{nifty_call.delta_dollars:,.2f})")
@@ -1565,88 +1582,19 @@ def main():
         print(f"   Delta: {banknifty_put.delta:.4f} (₹{banknifty_put.delta_dollars:,.2f})")
         print(f"   Gamma: {banknifty_put.gamma:.6f}")
         print(f"   Theta: {banknifty_put.theta:.4f} (₹{banknifty_put.theta_dollars:,.2f}/day)")
-        
-        # Test portfolio Greeks (will be empty unless you have positions)
-        print("\n📋 Portfolio Greeks Analysis:")
-        portfolio_greeks = greeks_calc.calculate_portfolio_greeks()
-        
-        print(f"   Total Positions: {portfolio_greeks.total_positions}")
-        print(f"   Net Delta: {portfolio_greeks.net_delta:.4f} (₹{portfolio_greeks.net_delta_dollars:,.2f})")
-        print(f"   Net Gamma: {portfolio_greeks.net_gamma:.6f}")
-        print(f"   Net Theta: {portfolio_greeks.net_theta:.4f} (₹{portfolio_greeks.net_theta_dollars:,.2f}/day)")
-        print(f"   Net Vega: {portfolio_greeks.net_vega:.4f} (₹{portfolio_greeks.net_vega_dollars:,.2f})")
-        print(f"   Portfolio VaR: ₹{portfolio_greeks.portfolio_var:,.2f}")
-        
-        # Test Greeks scenarios
-        print("\n🎯 Greeks Scenarios Analysis:")
-        scenarios = greeks_calc.get_greeks_scenarios(
-            symbol='NIFTY',
-            strike_price=25300,
-            option_type='CE',
-            expiry_date=(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d'),
-            quantity=2
-        )
-        
-        if 'combined_scenarios' in scenarios:
-            combined = scenarios['combined_scenarios']
-            for scenario in combined:
-                print(f"   {scenario['scenario']}: ₹{scenario['total_pnl']:,.2f} P&L")
-        
-        # Test hedging recommendations
-        print("\n🛡️ Hedging Recommendations:")
-        hedging = greeks_calc.get_hedging_recommendations(target_delta=0.0)
-        
-        current_portfolio = hedging.get('current_portfolio', {})
-        print(f"   Current Delta: {current_portfolio.get('net_delta', 0):.4f}")
-        print(f"   Target Delta: {current_portfolio.get('target_delta', 0):.4f}")
-        print(f"   Hedge Urgency: {current_portfolio.get('hedge_urgency', 'UNKNOWN')}")
-        
-        strategies = hedging.get('hedging_strategies', [])
-        if strategies:
-            primary = strategies[0]
-            print(f"   Primary Strategy: {primary.get('strategy', 'NONE')}")
-            print(f"   Description: {primary.get('description', 'N/A')}")
+        print(f"   Lot Size: {get_lot_size('BANKNIFTY')} (centralized)")
         
         # Test dashboard data
         print("\n📱 Dashboard Data Format:")
         dashboard_data = greeks_calc.get_dashboard_data('NIFTY')
         
-        portfolio = dashboard_data.get('portfolio_greeks', {})
-        print(f"   Delta Widget: {portfolio.get('net_delta', {}).get('value', 0):.4f} ({portfolio.get('net_delta', {}).get('color', 'gray')})")
-        print(f"   Gamma Widget: {portfolio.get('net_gamma', {}).get('value', 0):.6f}")
-        print(f"   Theta Widget: ₹{portfolio.get('net_theta', {}).get('dollars', 0):,.2f}/day")
-        print(f"   Vega Widget: ₹{portfolio.get('net_vega', {}).get('dollars', 0):,.2f}")
-        
-        # Test performance metrics
-        print("\n📈 System Performance:")
-        performance = dashboard_data.get('system_performance', {})
-        print(f"   Calculations Performed: {performance.get('calculations_performed', 0)}")
-        print(f"   Cache Hit Rate: {performance.get('cache_hit_rate', 0):.1f}%")
-        print(f"   Avg Calculation Time: {performance.get('avg_calculation_time', 0):.2f}ms")
-        print(f"   Error Rate: {performance.get('error_rate', 0):.1f}%")
-        
-        # Show risk alerts
-        risk_alerts = dashboard_data.get('risk_alerts', [])
-        if risk_alerts:
-            print(f"\n⚠️ Risk Alerts ({len(risk_alerts)}):")
-            for alert in risk_alerts[:3]:
-                print(f"      • {alert['type']}: {alert['message']}")
+        lot_sizes = dashboard_data.get('lot_sizes', {})
+        print(f"   Centralized Lot Sizes:")
+        for symbol, size in lot_sizes.items():
+            print(f"      {symbol}: {size}")
         
         print("\n✅ Option Greeks Calculator testing completed!")
-        print("\n🚀 Integration commands:")
-        print("   # Add to dashboard_backend.py:")
-        print("   from option_greeks_calculator import OptionGreeksCalculator")
-        print("   self.greeks_calc = OptionGreeksCalculator()")
-        print("   ")
-        print("   # New API endpoints:")
-        print("   @app.route('/api/greeks/portfolio')")
-        print("   def get_portfolio_greeks():")
-        print("       return jsonify(self.greeks_calc.get_dashboard_data())")
-        print("   ")
-        print("   @app.route('/api/greeks/<symbol>/<float:strike>/<option_type>')")
-        print("   def get_option_greeks(symbol, strike, option_type):")
-        print("       greeks = self.greeks_calc.calculate_option_greeks(symbol, strike, option_type, expiry)")
-        print("       return jsonify(greeks.to_dict())")
+        print("📦 Using centralized lot sizes throughout the system!")
         
     except KeyboardInterrupt:
         print("\n⏹️ Testing stopped by user")

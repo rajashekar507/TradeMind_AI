@@ -30,5 +30,13 @@
     "balance_before": 10010.18,
     "balance_after": 2510.1800000000003,
     "change": -7500
+  },
+  {
+    "timestamp": "2025-06-13T02:58:18.915942",
+    "trade_type": "TRADE_OPENED_NIFTY",
+    "amount": -7500,
+    "balance_before": 9509.18,
+    "balance_after": 2009.1800000000003,
+    "change": -7500
   }
 ]

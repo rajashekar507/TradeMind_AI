@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 from dhanhq import DhanContext, dhanhq
 from dotenv import load_dotenv
 
+# Import centralized constants - FIXED DUPLICATION
+from config.constants import LOT_SIZES, get_lot_size
+
 class ExactStrikeRecommender:
     """AI that recommends EXACT strikes to trade"""
     
@@ -38,11 +41,7 @@ class ExactStrikeRecommender:
         self.BANKNIFTY_ID = 25
         self.IDX_SEGMENT = "IDX_I"
         
-        # UPDATED LOT SIZES AS PER SEBI GUIDELINES (June 2025)
-        self.lot_sizes = {
-            'NIFTY': 75,      # Changed from 25 on Dec 26, 2024
-            'BANKNIFTY': 30   # Changed from 15 on Dec 24, 2024
-        }
+        # REMOVED DUPLICATE LOT_SIZES - Now using centralized version from config.constants
         
         # Trading preferences for better recommendations
         self.trading_preferences = {
@@ -210,8 +209,8 @@ class ExactStrikeRecommender:
             if abs(delta) < self.trading_preferences['min_delta']:
                 return None
             
-            # Get lot size
-            lot_size = self.lot_sizes.get(symbol, 75)
+            # Get lot size using centralized function - FIXED
+            lot_size = get_lot_size(symbol)
             
             # Calculate capital requirements
             capital_per_lot = price * lot_size
@@ -607,7 +606,7 @@ class ExactStrikeRecommender:
         self.current_balance = self.fetch_current_balance()
         print(f"💰 Current Trading Balance: ₹{self.current_balance:,.2f}")
         
-        # Display filtering criteria
+        # Display filtering criteria using centralized lot sizes - FIXED
         print(f"\n🎯 Quality Filters Active:")
         print(f"   • Minimum Movement Score: {self.trading_preferences['min_movement_score']}/100")
         print(f"   • Minimum Overall Score: {self.trading_preferences['min_total_score']}/100")
@@ -615,6 +614,7 @@ class ExactStrikeRecommender:
         print(f"   • Minimum Delta: {self.trading_preferences['min_delta']}")
         print(f"   • Minimum Volume: {self.trading_preferences['min_volume']:,}")
         print(f"   • Preferred Strike Range: {self.trading_preferences['preferred_moneyness_range'][0]*100:.0f}%-{self.trading_preferences['preferred_moneyness_range'][1]*100:.0f}%")
+        print(f"   • Lot Sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
         
         all_recommendations = []
         
@@ -647,12 +647,36 @@ class ExactStrikeRecommender:
             print("   • Better to wait for clearer opportunities")
             self.send_alert("🤔 No high-quality trading opportunities found. Quality filters are protecting your capital! 🛡️")
 
+    def get_best_strikes(self, symbol: str, spot_price: float) -> list:
+        """Get best strikes for given symbol and spot price - used by master trader"""
+        try:
+            # Get market data
+            symbol_id = self.NIFTY_ID if symbol == 'NIFTY' else self.BANKNIFTY_ID
+            market_data = self.fetch_complete_option_chain(symbol_id, symbol)
+            
+            if market_data:
+                recommendations = self.analyze_all_strikes_for_opportunities(market_data)
+                # Return simplified format for master trader
+                strikes = []
+                for rec in recommendations:
+                    strikes.append({
+                        'strike': rec['strike'],
+                        'option_type': rec['option_type'],
+                        'price': rec['current_price'],
+                        'score': rec['score']
+                    })
+                return strikes
+            return []
+        except Exception as e:
+            print(f"❌ Error getting best strikes: {e}")
+            return []
+
 def main():
     """Main function to run exact strike recommendations"""
     print("🌟 TradeMind_AI: Exact Strike Recommender V2.0")
     print("🎯 High-Probability Option Selection System")
     print("📊 Balances Movement Potential with Success Probability")
-    print("📦 Using UPDATED lot sizes: NIFTY=75, BANKNIFTY=30")
+    print(f"📦 Using CENTRALIZED lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
     print("🛡️ Quality Filters: Protecting Your Capital")
     
     try:
