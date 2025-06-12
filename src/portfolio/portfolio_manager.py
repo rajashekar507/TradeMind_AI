@@ -1,5 +1,5 @@
-# TradeMind_AI Day 5: Portfolio Manager & Performance Tracker
-# Enhanced with Balance Tracking and Movement Analysis
+# TradeMind_AI: Portfolio Manager & Performance Tracker
+# Enhanced with Shared Balance Utility - NO CODE DUPLICATION
 
 import os
 import json
@@ -12,15 +12,14 @@ import requests
 import threading
 import time
 
-# Import centralized constants - FIXED DUPLICATION  
-try:
-    from config.constants import LOT_SIZES, get_lot_size
-except ImportError:
-    # Alternative path for different execution contexts
-    import sys
-    import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-    from config.constants import LOT_SIZES, get_lot_size
+# Import shared balance utility - ELIMINATES CODE DUPLICATION
+from src.utils.balance_utils import (
+    balance_manager,
+    fetch_current_balance,
+    get_detailed_balance_info,
+    send_balance_alert,
+    update_balance_after_trade
+)
 
 class PortfolioManager:
     """Advanced portfolio management and performance tracking"""
@@ -28,7 +27,7 @@ class PortfolioManager:
     def __init__(self):
         """Initialize portfolio manager"""
         print("📊 Initializing TradeMind_AI Portfolio Manager...")
-        print("💰 Advanced P&L tracking and analytics")
+        print("💰 Using shared balance utility - no code duplication!")
         
         # Load environment
         load_dotenv()
@@ -46,9 +45,8 @@ class PortfolioManager:
         self.dhan = dhanhq(dhan_context)
         
         # Portfolio tracking
-        self.trades_file = "trades_database.json"
-        self.performance_file = "performance_analytics.json"
-        self.balance_history_file = "balance_history.json"
+        self.trades_file = "data/trades_database.json"
+        self.performance_file = "data/performance_analytics.json"
         
         # Load existing data
         self.trades_database = self.load_trades_database()
@@ -56,7 +54,10 @@ class PortfolioManager:
         
         # Portfolio metrics
         self.total_capital = float(os.getenv('TOTAL_CAPITAL', 100000))
-        self.available_capital = self.fetch_current_balance()  # Fetch live balance
+        
+        # Use shared balance utility instead of duplicate code
+        self.available_capital = fetch_current_balance()
+        
         self.allocated_capital = 0
         self.total_pnl = 0
         self.daily_pnl = 0
@@ -66,110 +67,24 @@ class PortfolioManager:
         self.max_single_trade_risk = 0.005  # 0.5% max per trade
         self.max_daily_loss = self.total_capital * 0.03  # 3% daily stop loss
         
-        # REMOVED DUPLICATE LOT_SIZES - Now using centralized version from config.constants
+        # UPDATED LOT SIZES AS PER SEBI GUIDELINES (June 2025)
+        self.lot_sizes = {
+            'NIFTY': 75,      # Changed from 25 on Dec 26, 2024
+            'BANKNIFTY': 30   # Changed from 15 on Dec 24, 2024
+        }
         
-        # Start automatic balance tracking
+        # Start automatic balance tracking using shared utility
         self.auto_fetch_balance_schedule()
         
         print("✅ Portfolio Manager initialized!")
-        print(f"📦 Using centralized lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
+        print(f"📦 Using updated lot sizes: NIFTY={self.lot_sizes['NIFTY']}, BANKNIFTY={self.lot_sizes['BANKNIFTY']}")
         print(f"💰 Current Balance: ₹{self.available_capital:,.2f}")
-        self.send_portfolio_alert(f"📊 TradeMind_AI Portfolio Manager is ONLINE!\n💰 Balance: ₹{self.available_capital:,.2f}")
-
-    def send_portfolio_alert(self, message: str) -> bool:
-        """Send portfolio alerts to Telegram"""
-        try:
-            url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-            data = {
-                "chat_id": self.telegram_chat_id,
-                "text": message,
-                "parse_mode": "HTML"
-            }
-            response = requests.post(url, data=data)
-            return response.status_code == 200
-        except:
-            return False
-
-    def fetch_current_balance(self) -> float:
-        """Fetch current balance from Dhan"""
-        try:
-            funds = self.dhan.get_fund_limits()
-            if funds and 'data' in funds:
-                balance_data = funds['data']
-                available = balance_data.get('availabelBalance', 0)  # Dhan API typo
-                if available == 0:
-                    available = balance_data.get('availableBalance', 0)
-                return float(available)
-            return float(os.getenv('TOTAL_CAPITAL', 100000))
-        except Exception as e:
-            print(f"⚠️ Could not fetch balance: {e}")
-            return float(os.getenv('TOTAL_CAPITAL', 100000))
-
-    def update_balance_after_trade(self, trade_type: str, amount: float) -> None:
-        """Update balance after trade execution or closure"""
-        try:
-            # Fetch latest balance from broker
-            old_balance = self.available_capital
-            current_balance = self.fetch_current_balance()
-            
-            balance_update = {
-                'timestamp': datetime.now().isoformat(),
-                'trade_type': trade_type,
-                'amount': amount,
-                'balance_before': old_balance,
-                'balance_after': current_balance,
-                'change': current_balance - old_balance
-            }
-            
-            # Update internal balance
-            self.available_capital = current_balance
-            
-            # Log balance update
-            self.log_balance_update(balance_update)
-            
-            # Send balance alert
-            self.send_balance_update_alert(balance_update)
-            
-        except Exception as e:
-            print(f"❌ Error updating balance: {e}")
-
-    def log_balance_update(self, update: dict) -> None:
-        """Log balance updates to file"""
-        try:
-            # Load existing log
-            if os.path.exists(self.balance_history_file):
-                with open(self.balance_history_file, 'r') as f:
-                    balance_history = json.load(f)
-            else:
-                balance_history = []
-            
-            # Add new update
-            balance_history.append(update)
-            
-            # Save updated log
-            with open(self.balance_history_file, 'w') as f:
-                json.dump(balance_history, f, indent=2, default=str)
-                
-        except Exception as e:
-            print(f"❌ Error logging balance: {e}")
-
-    def send_balance_update_alert(self, update: dict) -> None:
-        """Send balance update alert"""
-        message = f"""
-💰 <b>BALANCE UPDATE</b>
-
-🔄 Type: {update['trade_type']}
-💵 Amount: ₹{abs(update['amount']):,.2f}
-📊 Balance Before: ₹{update['balance_before']:,.2f}
-💰 Balance After: ₹{update['balance_after']:,.2f}
-📈 Change: ₹{update['change']:+,.2f}
-
-⏰ {datetime.now().strftime('%H:%M:%S')}
-        """
-        self.send_portfolio_alert(message)
+        
+        # Use shared utility for alert
+        send_balance_alert(f"📊 TradeMind_AI Portfolio Manager is ONLINE!\n💰 Balance: ₹{self.available_capital:,.2f}")
 
     def auto_fetch_balance_schedule(self) -> None:
-        """Schedule automatic balance fetching"""
+        """Schedule automatic balance fetching using shared utility"""
         def fetch_balance_periodically():
             while True:
                 try:
@@ -180,10 +95,14 @@ class PortfolioManager:
                     
                     if market_open <= current_time <= market_close:
                         old_balance = self.available_capital
-                        new_balance = self.fetch_current_balance()
+                        
+                        # Use shared balance utility
+                        new_balance = fetch_current_balance()
                         
                         if abs(new_balance - old_balance) > 1:  # If balance changed
-                            self.update_balance_after_trade("AUTO_SYNC", 0)
+                            self.available_capital = new_balance
+                            # Use shared utility for balance update
+                            update_balance_after_trade("AUTO_SYNC", 0)
                     
                     time.sleep(1800)  # 30 minutes
                     
@@ -194,7 +113,7 @@ class PortfolioManager:
         # Start balance fetching thread
         balance_thread = threading.Thread(target=fetch_balance_periodically, daemon=True)
         balance_thread.start()
-        print("✅ Automatic balance tracking enabled")
+        print("✅ Automatic balance tracking enabled (using shared utility)")
 
     def load_trades_database(self) -> dict:
         """Load trades database from file"""
@@ -253,16 +172,24 @@ class PortfolioManager:
         except Exception as e:
             print(f"❌ Error saving performance data: {e}")
 
-    # REMOVED DUPLICATE get_lot_size METHOD - Now using centralized version from config.constants
+    def get_lot_size(self, symbol: str) -> int:
+        """Get correct lot size for symbol"""
+        if 'BANKNIFTY' in symbol.upper():
+            return self.lot_sizes['BANKNIFTY']
+        elif 'NIFTY' in symbol.upper():
+            return self.lot_sizes['NIFTY']
+        else:
+            # Default to NIFTY lot size
+            return self.lot_sizes['NIFTY']
 
     def add_trade(self, trade_data: dict) -> None:
-        """Add new trade to portfolio with balance update"""
+        """Add new trade to portfolio with shared balance utility"""
         try:
             # Generate trade ID
             trade_id = f"TM_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            # Get correct lot size using centralized function - FIXED
-            lot_size = trade_data.get("lot_size", get_lot_size(trade_data.get("symbol", "")))
+            # Get correct lot size
+            lot_size = trade_data.get("lot_size", self.get_lot_size(trade_data.get("symbol", "")))
             
             # Complete trade data
             complete_trade = {
@@ -300,11 +227,15 @@ class PortfolioManager:
             # Save database
             self.save_trades_database()
             
-            # Update balance after trade
-            self.update_balance_after_trade(
+            # Use shared balance utility for balance update
+            balance_update = update_balance_after_trade(
                 f"TRADE_OPENED_{trade_data['symbol']}",
                 -complete_trade["capital_allocated"]
             )
+            
+            # Update local balance from shared utility response
+            if 'new_balance' in balance_update:
+                self.available_capital = balance_update['new_balance']
             
             # Send trade confirmation
             self.send_trade_confirmation(complete_trade)
@@ -322,8 +253,8 @@ class PortfolioManager:
                     # Update current price
                     trade["current_price"] = current_price
                     
-                    # Get lot size using centralized function - FIXED
-                    lot_size = trade.get("lot_size", get_lot_size(trade["symbol"]))
+                    # Get lot size
+                    lot_size = trade.get("lot_size", self.get_lot_size(trade["symbol"]))
                     
                     # Calculate P&L
                     if trade["action"] == "BUY":
@@ -349,7 +280,7 @@ class PortfolioManager:
             print(f"❌ Error updating trade price: {e}")
 
     def close_trade(self, trade_id: str, exit_price: float, exit_reason: str) -> None:
-        """Close a trade and update portfolio with balance update"""
+        """Close a trade and update portfolio with shared balance utility"""
         try:
             for trade in self.trades_database["trades"]:
                 if trade["trade_id"] == trade_id and trade["status"] == "OPEN":
@@ -359,8 +290,8 @@ class PortfolioManager:
                     trade["exit_reason"] = exit_reason
                     trade["status"] = "CLOSED"
                     
-                    # Get lot size using centralized function - FIXED
-                    lot_size = trade.get("lot_size", get_lot_size(trade["symbol"]))
+                    # Get lot size
+                    lot_size = trade.get("lot_size", self.get_lot_size(trade["symbol"]))
                     
                     # Calculate final P&L
                     if trade["action"] == "BUY":
@@ -390,11 +321,15 @@ class PortfolioManager:
                     summary["best_trade"] = max(summary.get("best_trade", 0), final_pnl)
                     summary["worst_trade"] = min(summary.get("worst_trade", 0), final_pnl)
                     
-                    # Update balance after trade closure
-                    self.update_balance_after_trade(
+                    # Use shared balance utility for balance update
+                    balance_update = update_balance_after_trade(
                         f"TRADE_CLOSED_{trade['symbol']}",
                         trade["capital_allocated"] + final_pnl
                     )
+                    
+                    # Update local balance from shared utility response
+                    if 'new_balance' in balance_update:
+                        self.available_capital = balance_update['new_balance']
                     
                     # Send trade close notification
                     self.send_trade_close_notification(trade)
@@ -408,8 +343,8 @@ class PortfolioManager:
             print(f"❌ Error closing trade: {e}")
 
     def send_trade_confirmation(self, trade: dict) -> None:
-        """Send trade confirmation to Telegram"""
-        lot_size = trade.get('lot_size', get_lot_size(trade['symbol']))  # FIXED
+        """Send trade confirmation using shared balance utility"""
+        lot_size = trade.get('lot_size', self.get_lot_size(trade['symbol']))
         total_quantity = trade['quantity'] * lot_size
         
         message = f"""
@@ -434,12 +369,13 @@ class PortfolioManager:
 ⏰ {datetime.now().strftime('%H:%M:%S')}
         """
         
-        self.send_portfolio_alert(message)
+        # Use shared balance utility for sending alert
+        send_balance_alert(message)
 
     def send_trade_close_notification(self, trade: dict) -> None:
-        """Send trade close notification"""
+        """Send trade close notification using shared balance utility"""
         profit_emoji = "🟢" if trade['pnl'] > 0 else "🔴"
-        lot_size = trade.get('lot_size', get_lot_size(trade['symbol']))  # FIXED
+        lot_size = trade.get('lot_size', self.get_lot_size(trade['symbol']))
         
         message = f"""
 {profit_emoji} <b>TRADE CLOSED</b>
@@ -460,11 +396,15 @@ class PortfolioManager:
 ⏰ {datetime.now().strftime('%H:%M:%S')}
         """
         
-        self.send_portfolio_alert(message)
+        # Use shared balance utility for sending alert
+        send_balance_alert(message)
 
     def get_portfolio_summary(self) -> dict:
-        """Get comprehensive portfolio summary"""
+        """Get comprehensive portfolio summary using shared balance utility"""
         try:
+            # Update balance using shared utility
+            self.available_capital = fetch_current_balance()
+            
             open_trades = [t for t in self.trades_database["trades"] if t["status"] == "OPEN"]
             closed_trades = [t for t in self.trades_database["trades"] if t["status"] == "CLOSED"]
             
@@ -506,10 +446,10 @@ class PortfolioManager:
             return {}
 
     def send_daily_portfolio_report(self) -> None:
-        """Send comprehensive daily portfolio report"""
+        """Send comprehensive daily portfolio report using shared balance utility"""
         try:
-            # Update balance before report
-            self.available_capital = self.fetch_current_balance()
+            # Get detailed balance info using shared utility
+            balance_info = get_detailed_balance_info()
             
             summary = self.get_portfolio_summary()
             
@@ -539,16 +479,20 @@ class PortfolioManager:
 🚀 Best Trade: ₹{summary['best_trade']:.2f}
 💥 Worst Trade: ₹{summary['worst_trade']:.2f}
 
-📦 <b>Centralized Lot Sizes:</b>
-NIFTY: {get_lot_size('NIFTY')} units
-BANKNIFTY: {get_lot_size('BANKNIFTY')} units
+📦 <b>Lot Sizes:</b>
+NIFTY: {self.lot_sizes['NIFTY']} units
+BANKNIFTY: {self.lot_sizes['BANKNIFTY']} units
 
-💰 <b>Live Balance:</b> ₹{self.available_capital:,.2f}
+💰 <b>Live Balance Info:</b>
+💵 Available: ₹{balance_info['available_balance']:,.2f}
+🔒 Used Margin: ₹{balance_info['used_margin']:,.2f}
+📊 Mode: {balance_info['mode']}
 
 ⏰ Generated: {datetime.now().strftime('%H:%M:%S')}
             """
             
-            self.send_portfolio_alert(message)
+            # Use shared balance utility for sending report
+            send_balance_alert(message)
             
         except Exception as e:
             print(f"❌ Error sending portfolio report: {e}")
@@ -558,13 +502,13 @@ BANKNIFTY: {get_lot_size('BANKNIFTY')} units
         try:
             # Check daily loss limit
             if abs(self.daily_pnl) >= self.max_daily_loss:
-                self.send_portfolio_alert("🚨 DAILY LOSS LIMIT REACHED! Trading paused.")
+                send_balance_alert("🚨 DAILY LOSS LIMIT REACHED! Trading paused.")
                 return False
             
             # Check portfolio risk
             portfolio_risk = (self.allocated_capital / self.total_capital)
             if portfolio_risk > self.max_portfolio_risk:
-                self.send_portfolio_alert("⚠️ Portfolio risk limit exceeded!")
+                send_balance_alert("⚠️ Portfolio risk limit exceeded!")
                 return False
             
             return True
@@ -574,13 +518,19 @@ BANKNIFTY: {get_lot_size('BANKNIFTY')} units
             return True
 
     def simulate_paper_trade(self, recommendation: dict) -> None:
-        """Simulate a paper trade based on recommendation"""
+        """Simulate a paper trade based on recommendation using shared balance utility"""
         try:
-            # Update balance before trade
-            self.available_capital = self.fetch_current_balance()
+            # Update balance using shared utility
+            self.available_capital = fetch_current_balance()
             
-            # Get correct lot size based on symbol using centralized function - FIXED
-            lot_size = get_lot_size(recommendation['symbol'])
+            # Get correct lot size based on symbol
+            if 'NIFTY' in recommendation['symbol']:
+                if 'BANKNIFTY' in recommendation['symbol']:
+                    lot_size = self.lot_sizes['BANKNIFTY']  # 30
+                else:
+                    lot_size = self.lot_sizes['NIFTY']  # 75
+            else:
+                lot_size = recommendation.get('lot_size', self.lot_sizes['NIFTY'])
             
             # Calculate position size based on risk
             risk_amount = self.total_capital * self.max_single_trade_risk
@@ -595,7 +545,7 @@ BANKNIFTY: {get_lot_size('BANKNIFTY')} units
             
             if max_affordable_lots < 1:
                 print(f"❌ Cannot afford {recommendation['symbol']} - Need ₹{capital_per_lot:,.0f} per lot")
-                self.send_portfolio_alert(f"❌ Insufficient balance for {recommendation['symbol']} - Need ₹{capital_per_lot:,.0f}")
+                send_balance_alert(f"❌ Insufficient balance for {recommendation['symbol']} - Need ₹{capital_per_lot:,.0f}")
                 return
             
             # Calculate quantity based on risk
@@ -629,7 +579,7 @@ BANKNIFTY: {get_lot_size('BANKNIFTY')} units
                 "expected_move": recommendation.get('expected_daily_move', 0)
             }
             
-            # Add trade to portfolio
+            # Add trade to portfolio (will use shared balance utility)
             self.add_trade(trade_data)
             
             print(f"📊 Paper trade simulated: {trade_data['symbol']} {trade_data['strike']} {trade_data['option_type']}")
@@ -641,41 +591,11 @@ BANKNIFTY: {get_lot_size('BANKNIFTY')} units
         except Exception as e:
             print(f"❌ Error simulating paper trade: {e}")
 
-    def get_open_positions(self) -> list:
-        """Get list of open positions"""
-        return [t for t in self.trades_database["trades"] if t["status"] == "OPEN"]
-
-    def display_portfolio(self) -> None:
-        """Display portfolio in readable format"""
-        print("\n📊 PORTFOLIO OVERVIEW")
-        print("="*60)
-        
-        summary = self.get_portfolio_summary()
-        
-        print(f"💰 Available Capital: ₹{summary['available_capital']:,.2f}")
-        print(f"🔒 Allocated Capital: ₹{summary['allocated_capital']:,.2f}")
-        print(f"📈 Total P&L: ₹{summary['total_pnl']:,.2f}")
-        print(f"📊 Portfolio Return: {summary['portfolio_return']:.2f}%")
-        print(f"🎯 Open Positions: {summary['open_positions']}")
-        print(f"🏆 Win Rate: {summary['win_rate']:.1f}%")
-        print(f"📦 Lot Sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
-        
-        # Show open positions
-        open_positions = self.get_open_positions()
-        if open_positions:
-            print(f"\n📋 OPEN POSITIONS:")
-            for i, pos in enumerate(open_positions, 1):
-                print(f"  {i}. {pos['symbol']} {pos['strike']} {pos['option_type']} - ₹{pos['current_price']:.2f} (P&L: ₹{pos['pnl']:.2f})")
-        else:
-            print("\n📋 No open positions")
-        
-        print("="*60)
-
 def main():
     """Main function to run portfolio manager"""
-    print("📊 TradeMind_AI Portfolio Manager - Enhanced Version")
-    print("💰 Advanced P&L Tracking with Balance Monitoring")
-    print(f"📦 Using CENTRALIZED lot sizes: NIFTY={get_lot_size('NIFTY')}, BANKNIFTY={get_lot_size('BANKNIFTY')}")
+    print("📊 TradeMind_AI Portfolio Manager - FIXED VERSION")
+    print("💰 Using Shared Balance Utility - NO CODE DUPLICATION")
+    print("📦 Using UPDATED lot sizes: NIFTY=75, BANKNIFTY=30")
     print("🚀 Movement Potential Analysis Integrated")
     
     try:
@@ -728,7 +648,7 @@ def main():
             
         print("\n✅ Portfolio Manager demo completed!")
         print("📊 Check your Telegram for portfolio reports!")
-        print("💰 Balance tracking active - updates every 30 minutes")
+        print("💰 Balance tracking active - using shared utility!")
         
     except Exception as e:
         print(f"❌ Error: {e}")
