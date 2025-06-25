@@ -48,6 +48,15 @@ class TradingSystemManager:
         
         logger.info("✅ Institutional-grade TradingSystemManager initialized")
     
+    async def initialize(self):
+        """Initialize all system components"""
+        try:
+            logger.info("🔧 Initializing all institutional-grade components...")
+            return await self._initialize_system()
+        except Exception as e:
+            logger.error(f"❌ System initialization failed: {e}")
+            return False
+    
     async def run(self):
         """Main system loop"""
         try:
@@ -84,18 +93,25 @@ class TradingSystemManager:
         try:
             logger.info("🔧 Initializing institutional-grade system components...")
             
-            if not await self.data_manager.initialize():
-                logger.error("❌ Data manager initialization failed")
-                return False
+            if not await self.kite_auth.initialize():
+                logger.warning("⚠️ Kite authentication initialization failed")
             
             self.kite_client = self.kite_auth.get_authenticated_kite()
             if not self.kite_client:
                 logger.warning("⚠️ Kite client not available - some features will be limited")
+            else:
+                logger.info("✅ Kite client obtained successfully")
+                self.data_manager.kite_client = self.kite_client
+                logger.info("✅ Kite client passed to DataManager")
+
+            if not await self.data_manager.initialize():
+                logger.error("❌ Data manager initialization failed")
+                return False
             
-            self.multi_timeframe = MultiTimeframeAnalyzer(self.kite_client)
-            self.pattern_detector = PatternDetector(self.kite_client)
-            self.support_resistance = SupportResistanceCalculator(self.kite_client)
-            self.orb_strategy = ORBStrategy(self.kite_client)
+            self.multi_timeframe = MultiTimeframeAnalyzer(self.settings)
+            self.pattern_detector = PatternDetector(self.kite_client) if self.kite_client else None
+            self.support_resistance = SupportResistanceCalculator(self.kite_client) if self.kite_client else None
+            self.orb_strategy = ORBStrategy(self.kite_client) if self.kite_client else None
             
             self.trade_executor = TradeExecutor(self.kite_client, self.settings)
             self.risk_manager = RiskManager(self.settings)
@@ -131,7 +147,9 @@ class TradingSystemManager:
             
             enhanced_data = await self._perform_enhanced_analysis(market_data)
             
-            risk_status = self.risk_manager.check_circuit_breakers(market_data)
+            risk_status = {'triggered': False}
+            if self.risk_manager and isinstance(market_data, dict):
+                risk_status = self.risk_manager.check_circuit_breakers(market_data)
             if risk_status['triggered']:
                 logger.warning(f"⚠️ Circuit breaker triggered: {risk_status['action']}")
                 if risk_status['action'] == 'halt_trading':
@@ -178,7 +196,7 @@ class TradingSystemManager:
             
             for symbol in ['NIFTY', 'BANKNIFTY']:
                 if self.multi_timeframe:
-                    mtf_analysis = await self.multi_timeframe.analyze_symbol(symbol)
+                    mtf_analysis = await self.multi_timeframe.analyze_symbol(symbol, market_data)
                     enhanced_data[f'{symbol.lower()}_mtf'] = mtf_analysis
                 
                 if self.pattern_detector:
