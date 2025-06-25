@@ -65,7 +65,7 @@ class TelegramNotifier:
             if not self.enabled:
                 return False
             
-            formatted_message = f"🚨 *SYSTEM ALERT*\n\n*Type:* {alert_type}\n*Message:* {message}\n*Time:* {datetime.now().strftime('%H:%M:%S')}"
+            formatted_message = f"[SYSTEM ALERT]\n\nType: {alert_type}\nMessage: {message}\nTime: {datetime.now().strftime('%H:%M:%S')}"
             return await self._send_message(formatted_message)
             
         except Exception as e:
@@ -88,30 +88,45 @@ class TelegramNotifier:
     def _format_trade_signal(self, signal: Dict[str, Any]) -> str:
         """Format trade signal for Telegram"""
         try:
+            timestamp = signal.get('timestamp', datetime.now())
             instrument = signal.get('instrument', 'N/A')
             strike = signal.get('strike', 'N/A')
+            option_type = signal.get('option_type', 'N/A')
+            direction = signal.get('direction', option_type)
             entry_price = signal.get('entry_price', 0)
             stop_loss = signal.get('stop_loss', 0)
-            target1 = signal.get('target1', 0)
-            target2 = signal.get('target2', 0)
+            target_1 = signal.get('target_1', 0)
+            target_2 = signal.get('target_2', 0)
             confidence = signal.get('confidence', 0)
             reason = signal.get('reason', 'Multi-factor analysis')
+            expiry = signal.get('expiry', 'Current Week')
+            risk_status = signal.get('risk_status', 'VALIDATED')
+            
+            if hasattr(timestamp, 'strftime'):
+                time_str = timestamp.strftime('%H:%M:%S IST')
+            else:
+                time_str = datetime.now().strftime('%H:%M:%S IST')
+            
+            status_emoji = "[VALIDATED]" if risk_status == 'VALIDATED' else "[RISK FILTERED]"
+            status_text = "VALIDATED" if risk_status == 'VALIDATED' else "RISK FILTERED"
             
             message = f"""
-🎯 *TRADE SIGNAL*
+{status_emoji} TRADE SIGNAL
 
-*Instrument:* {instrument}
-*Strike:* {strike}
-*Entry Price:* ₹{entry_price}
-*Stop Loss:* ₹{stop_loss}
-*Target 1:* ₹{target1}
-*Target 2:* ₹{target2}
-*Confidence:* {confidence}%
-*Reason:* {reason}
+Timestamp: {time_str}
+Instrument: {instrument}
+Signal Direction: {direction}
+Strike Price: {strike}
+Expiry Date: {expiry}
+Entry Price: Rs.{entry_price}
+Stop Loss: Rs.{stop_loss}
+Target 1: Rs.{target_1}
+Target 2: Rs.{target_2}
+Confidence Score: {confidence}%
+Reason Summary: {reason}
+Status: {status_text}
 
-*Time:* {datetime.now().strftime('%H:%M:%S')}
-
-🚀 VLR_AI Institutional Trading System
+VLR_AI Institutional Trading System
 """
             return message.strip()
             
@@ -127,13 +142,13 @@ class TelegramNotifier:
             total_sources = status.get('total_sources', 8)
             
             message = f"""
-📊 *MARKET STATUS UPDATE*
+[MARKET STATUS UPDATE]
 
-*System Health:* {health_percentage}%
-*Data Sources:* {active_sources}/{total_sources} Active
-*Time:* {datetime.now().strftime('%H:%M:%S')}
+System Health: {health_percentage}%
+Data Sources: {active_sources}/{total_sources} Active
+Time: {datetime.now().strftime('%H:%M:%S')}
 
-🔄 VLR_AI System Monitor
+VLR_AI System Monitor
 """
             return message.strip()
             
@@ -152,8 +167,7 @@ class TelegramNotifier:
             
             payload = {
                 'chat_id': self.chat_id,
-                'text': message,
-                'parse_mode': 'Markdown'
+                'text': message
             }
             
             response = requests.post(url, json=payload, timeout=10)
@@ -172,7 +186,7 @@ class TelegramNotifier:
     async def _test_connection(self) -> bool:
         """Test Telegram connection"""
         try:
-            test_message = f"🔧 VLR_AI System Test - {datetime.now().strftime('%H:%M:%S')}"
+            test_message = f"VLR_AI System Test - {datetime.now().strftime('%H:%M:%S')}"
             return await self._send_message(test_message)
             
         except Exception as e:

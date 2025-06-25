@@ -159,6 +159,8 @@ class TradingSystemManager:
             signals = await self.signal_engine.generate_signals(enhanced_data)
             
             validated_signals = []
+            risk_filtered_signals = []
+            
             for signal in signals:
                 risk_assessment = self.risk_manager.validate_trade_risk(
                     signal, self.active_positions, enhanced_data
@@ -169,6 +171,14 @@ class TradingSystemManager:
                     logger.info(f"✅ Signal approved: {signal['instrument']} {signal['strike']} {signal['option_type']}")
                 else:
                     logger.warning(f"⚠️ Signal rejected: {signal['instrument']} - {risk_assessment['violations']}")
+                    signal['risk_status'] = 'RISK_FILTERED'
+                    signal['risk_violations'] = risk_assessment.get('violations', [])
+                    signal['risk_score'] = risk_assessment.get('risk_score', 0)
+                    risk_filtered_signals.append(signal)
+            
+            all_signals_for_notification = validated_signals + risk_filtered_signals
+            if all_signals_for_notification and self.telegram_notifier:
+                await self._send_institutional_notifications(all_signals_for_notification)
             
             if validated_signals and self.institutional_mode:
                 execution_results = await self._execute_validated_trades(validated_signals)
@@ -178,10 +188,7 @@ class TradingSystemManager:
                 position_updates = await self.trade_executor.monitor_positions()
                 await self._process_position_updates(position_updates)
             
-            await self._display_institutional_results(enhanced_data, validated_signals)
-            
-            if validated_signals and self.telegram_notifier:
-                await self._send_institutional_notifications(validated_signals)
+            await self._display_institutional_results(enhanced_data, validated_signals, risk_filtered_signals)
             
             cycle_duration = (datetime.now() - cycle_start).total_seconds()
             logger.info(f"✅ Institutional cycle #{self.cycle_count + 1} completed in {cycle_duration:.1f}s")
@@ -258,7 +265,7 @@ class TradingSystemManager:
         except Exception as e:
             logger.error(f"❌ Position update processing failed: {e}")
     
-    async def _display_institutional_results(self, market_data: Dict, signals: List[Dict]):
+    async def _display_institutional_results(self, market_data: Dict, signals: List[Dict], risk_filtered_signals: List[Dict] = None):
         """Display comprehensive institutional-grade analysis results"""
         try:
             print("\n" + "=" * 100)
@@ -352,6 +359,8 @@ class TradingSystemManager:
             else:
                 print("❌ No validated signals (risk-filtered or below confidence threshold)")
                 print(f"   Minimum confidence required: {self.settings.CONFIDENCE_THRESHOLD}%")
+                if risk_filtered_signals:
+                    print(f"   Risk-filtered signals: {len(risk_filtered_signals)} (sent to Telegram with risk warnings)")
             
             freshness = self.data_manager.get_data_freshness()
             print(f"\n📡 INSTITUTIONAL DATA SOURCES ({freshness['health_percentage']:.0f}% HEALTHY):")
@@ -367,47 +376,48 @@ class TradingSystemManager:
     
     async def _display_results(self, market_data: Dict, signals: List[Dict]):
         """Fallback display method for compatibility"""
-        await self._display_institutional_results(market_data, signals)
+        await self._display_institutional_results(market_data, signals, [])
     
     async def _send_institutional_notifications(self, signals: List[Dict]):
         """Send institutional-grade trade signal notifications via Telegram"""
         try:
             for signal in signals:
-                risk_summary = "✅ APPROVED"
-                if self.risk_manager:
-                    risk_assessment = self.risk_manager.validate_trade_risk(
-                        signal, self.active_positions, {}
-                    )
-                    risk_score = risk_assessment.get('risk_score', 0)
-                    risk_summary = f"✅ APPROVED (Risk Score: {risk_score:.0f}/100)"
+                risk_status = signal.get('risk_status', 'VALIDATED')
+                if risk_status == 'RISK_FILTERED':
+                    risk_summary = f"⚠️ RISK FILTERED (Score: {signal.get('risk_score', 0):.0f}/100)"
+                    violations = signal.get('risk_violations', [])
+                    risk_details = f"\n🚨 **Violations:** {', '.join(violations[:2])}" if violations else ""
+                else:
+                    risk_summary = "✅ VALIDATED & APPROVED"
+                    risk_details = ""
                 
                 message = f"""
-🏛️ **INSTITUTIONAL TRADE SIGNAL**
+🎯 **TRADE SIGNAL - {signal['instrument']}**
 
 📊 **Instrument:** {signal['instrument']}
 🎯 **Strike:** {signal['strike']} {signal['option_type']}
+📅 **Expiry:** {signal.get('expiry', 'Current Week')}
 💰 **Entry Price:** ₹{signal['entry_price']}
 🛑 **Stop Loss:** ₹{signal['stop_loss']}
 🎯 **Target 1:** ₹{signal['target_1']}
 🎯 **Target 2:** ₹{signal['target_2']}
 📈 **Confidence:** {signal['confidence']}%
-📝 **Reason:** {signal['reason']}
 ⬆️ **Direction:** {signal['direction'].upper()}
+📝 **Reason:** {signal['reason']}
 
-🛡️ **Risk Status:** {risk_summary}
-🏛️ **Grade:** INSTITUTIONAL
+🛡️ **Risk Status:** {risk_summary}{risk_details}
 📋 **Active Positions:** {len(self.active_positions)}
-⏰ **Time:** {datetime.now().strftime('%H:%M:%S')}
+⏰ **Timestamp (IST):** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-🔗 **Enhanced Analysis:**
-• Multi-timeframe consensus applied
-• Pattern recognition validated
-• Support/resistance confirmed
-• ORB strategy integrated
-• SEBI compliance verified
+🏛️ **VLR_AI Institutional Trading System**
 """
+                
                 if self.telegram_notifier:
-                    await self.telegram_notifier.send_message(message)
+                    success = await self.telegram_notifier.send_message(message)
+                    if success:
+                        logger.info(f"✅ Telegram signal sent: {signal['instrument']} {signal['strike']} {signal['option_type']}")
+                    else:
+                        logger.error(f"❌ Telegram signal failed: {signal['instrument']}")
                 
         except Exception as e:
             logger.error(f"❌ Institutional notification sending failed: {e}")

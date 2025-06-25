@@ -172,15 +172,17 @@ class TradeSignalEngine:
             signal = {
                 'timestamp': datetime.now(),
                 'instrument': instrument,
-                'strike': f"{strike} {direction}",
+                'strike': strike,
+                'option_type': direction,
                 'direction': direction,
                 'entry_price': entry_price,
                 'stop_loss': sl_price,
-                'target1': target1,
-                'target2': target2,
+                'target_1': target1,
+                'target_2': target2,
                 'confidence': round(confidence, 1),
                 'current_spot': current_price,
-                'reason': self._generate_signal_reason(confidence, market_data)
+                'reason': self._generate_signal_reason(confidence, market_data),
+                'expiry': 'Current Week'
             }
             
             logger.info(f"✅ Generated {instrument} signal: {strike} {direction} @ {confidence}% confidence")
