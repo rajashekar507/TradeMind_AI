@@ -155,10 +155,10 @@ class TechnicalIndicators:
         rsi = self.calculate_rsi(prices)
         if rsi is not None:
             signals['RSI'] = round(rsi, 2)
-            if rsi < 30:
+            if rsi <= 30:
                 score += 20
                 recommendations.append(f"RSI Oversold ({rsi:.1f}) - STRONG BUY Signal")
-            elif rsi > 70:
+            elif rsi >= 70:
                 score -= 20
                 recommendations.append(f"RSI Overbought ({rsi:.1f}) - STRONG SELL Signal")
             else:

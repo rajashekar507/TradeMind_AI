@@ -170,7 +170,7 @@ class TechnicalIndicatorsDisplay:
         
         # Indicator parameters
         self.indicator_params = {
-            'rsi': {'period': 14, 'overbought': 70, 'oversold': 30},
+            'rsi': {'period': 14, 'overbought': 70.0, 'oversold': 30.0},
             'macd': {'fast': 12, 'slow': 26, 'signal': 9},
             'bollinger': {'period': 20, 'std_dev': 2},
             'ema': {'periods': [9, 21, 55]},

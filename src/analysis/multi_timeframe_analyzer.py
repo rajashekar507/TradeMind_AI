@@ -228,9 +228,9 @@ class MultiTimeframeAnalyzer:
         
         # RSI signals
         rsi = latest.get('RSI', 50)
-        if rsi > 70:
+        if rsi >= 70:
             signals.append('OVERBOUGHT')
-        elif rsi < 30:
+        elif rsi <= 30:
             signals.append('OVERSOLD')
         
         # MA signals

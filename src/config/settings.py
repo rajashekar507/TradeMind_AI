@@ -41,3 +41,8 @@ class Settings:
         
         self.LOG_LEVEL = "INFO"
         self.LOG_FILE = "trading_system.log"
+        
+        self.RSI_OVERBOUGHT_THRESHOLD = 70.0
+        self.RSI_OVERSOLD_THRESHOLD = 30.0
+        self.RSI_MILD_OVERBOUGHT_THRESHOLD = 60.0
+        self.RSI_MILD_OVERSOLD_THRESHOLD = 40.0

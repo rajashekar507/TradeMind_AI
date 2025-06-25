@@ -527,17 +527,17 @@ class AIDecisionEngine:
             score = 50  # Base score
             
             # RSI signals
-            if rsi < 30:
+            if rsi <= 30:
                 signals.append("RSI oversold - potential bullish reversal")
                 score += 15
-            elif rsi > 70:
+            elif rsi >= 70:
                 signals.append("RSI overbought - potential bearish reversal")
                 score -= 15
-            elif 30 <= rsi <= 45:
-                signals.append("RSI in bullish zone")
+            elif 30 < rsi < 40:
+                signals.append("RSI in mild bullish zone")
                 score += 8
-            elif 55 <= rsi <= 70:
-                signals.append("RSI in bearish zone")
+            elif 60 < rsi < 70:
+                signals.append("RSI in mild bearish zone")
                 score -= 8
             
             # MACD signals

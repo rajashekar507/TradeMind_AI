@@ -380,9 +380,9 @@ class RealHistoricalData:
         
         # 2. RSI patterns
         if pd.notna(latest['RSI']):
-            if latest['RSI'] > 70:
+            if latest['RSI'] >= 70:
                 analysis['patterns'].append('RSI Overbought - Potential reversal')
-            elif latest['RSI'] < 30:
+            elif latest['RSI'] <= 30:
                 analysis['patterns'].append('RSI Oversold - Potential bounce')
         
         # 3. Bollinger Band patterns

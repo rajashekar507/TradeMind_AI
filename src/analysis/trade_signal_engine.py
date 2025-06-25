@@ -26,6 +26,11 @@ class TradeSignalEngine:
         self.breakout_confidence_threshold = 50.0
         self.approaching_confidence_threshold = 15.0
         
+        self.rsi_overbought = 70.0
+        self.rsi_oversold = 30.0
+        self.rsi_mild_overbought = 60.0
+        self.rsi_mild_oversold = 40.0
+        
         self.weights = {
             'technical': 0.35,
             'options': 0.25,
@@ -34,6 +39,7 @@ class TradeSignalEngine:
         }
         
         logger.info("✅ TradeSignalEngine initialized with signal filtering and 30-minute cooldown")
+        logger.info(f"📈 RSI thresholds: Overbought={self.rsi_overbought}, Oversold={self.rsi_oversold}")
     
     async def initialize(self):
         """Initialize the trade signal engine"""
@@ -124,14 +130,18 @@ class TradeSignalEngine:
                 inst_data = technical_data.get(instrument, {})
                 
                 rsi = inst_data.get('rsi', 50)
-                if rsi > 70:
-                    score += 25
-                elif rsi > 60:
-                    score += 15
-                elif rsi < 30:
-                    score += 25
-                elif rsi < 40:
-                    score += 15
+                if rsi >= 75:
+                    score -= 40  # STRONG BEARISH: Extreme overbought
+                elif rsi >= self.rsi_overbought:
+                    score -= 30  # BEARISH: RSI overbought = negative score
+                elif rsi <= 25:
+                    score += 40  # STRONG BULLISH: Extreme oversold
+                elif rsi <= self.rsi_oversold:
+                    score += 30  # BULLISH: RSI oversold = positive score
+                elif rsi > self.rsi_mild_overbought:
+                    score -= 15  # Mild bearish: approaching overbought
+                elif rsi < self.rsi_mild_oversold:
+                    score += 15  # Mild bullish: approaching oversold
                 
                 trend = inst_data.get('trend', 'neutral')
                 if trend == 'bullish':
@@ -394,10 +404,18 @@ class TradeSignalEngine:
                 inst_data = technical_data.get(instrument, {})
                 
                 rsi = inst_data.get('rsi', 50)
-                if rsi > 60:
-                    direction_points += 2
-                elif rsi < 40:
-                    direction_points -= 2
+                if rsi >= 75:
+                    direction_points -= 8  # STRONG BEARISH: Extreme overbought = hard override
+                elif rsi >= self.rsi_overbought:
+                    direction_points -= 5  # BEARISH: RSI overbought = sell calls/buy puts
+                elif rsi <= 25:
+                    direction_points += 8  # STRONG BULLISH: Extreme oversold = hard override
+                elif rsi <= self.rsi_oversold:
+                    direction_points += 5  # BULLISH: RSI oversold = buy calls/sell puts
+                elif rsi > self.rsi_mild_overbought:
+                    direction_points -= 2  # Mild bearish: approaching overbought
+                elif rsi < self.rsi_mild_oversold:
+                    direction_points += 2  # Mild bullish: approaching oversold
                 
                 trend = inst_data.get('trend', 'neutral')
                 if trend == 'bullish':
@@ -448,6 +466,20 @@ class TradeSignalEngine:
                         direction_points += 1
                     elif pcr < 0.8:
                         direction_points -= 1
+            
+            technical_data = market_data.get('technical_data', {})
+            if technical_data and technical_data.get('status') == 'success':
+                inst_data = technical_data.get(instrument, {})
+                rsi = inst_data.get('rsi', 50)
+                
+                if rsi >= 75:
+                    direction = 'PE'  # FORCE PUT signals when extremely overbought
+                    logger.info(f"🔴 RSI OVERRIDE: {instrument} RSI {rsi:.1f} extremely overbought → FORCED PE signal")
+                    return direction
+                elif rsi <= 25:
+                    direction = 'CE'  # FORCE CALL signals when extremely oversold
+                    logger.info(f"🟢 RSI OVERRIDE: {instrument} RSI {rsi:.1f} extremely oversold → FORCED CE signal")
+                    return direction
             
             direction = 'CE' if direction_points > 0 else 'PE'
             
@@ -536,10 +568,10 @@ class TradeSignalEngine:
                     rsi = inst_data.get('rsi', 50)
                     trend = inst_data.get('trend', 'neutral')
                     
-                    if rsi > 70:
-                        reasons.append(f"{instrument} RSI overbought ({rsi:.1f})")
-                    elif rsi < 30:
-                        reasons.append(f"{instrument} RSI oversold ({rsi:.1f})")
+                    if rsi >= self.rsi_overbought:
+                        reasons.append(f"{instrument} RSI overbought ({rsi:.1f}) - bearish signal")
+                    elif rsi <= self.rsi_oversold:
+                        reasons.append(f"{instrument} RSI oversold ({rsi:.1f}) - bullish signal")
                     
                     if trend in ['bullish', 'bearish']:
                         reasons.append(f"{instrument} {trend} trend")
@@ -765,7 +797,7 @@ class TradeSignalEngine:
                 
                 if trend in ['bullish', 'bearish']:
                     confirmations += 1
-                if rsi > 60 or rsi < 40:
+                if rsi >= self.rsi_overbought or rsi <= self.rsi_oversold:  # Strong RSI signals only
                     confirmations += 1
             
             sr_data = market_data.get(f'{instrument.lower()}_sr', {})

@@ -307,9 +307,9 @@ class SelfLearningTrader:
         insights = []
         
         # Check feature patterns
-        if features.get('rsi', 50) > 70:
+        if features.get('rsi', 50) >= 70:
             insights.append("⚠️ RSI indicates overbought conditions")
-        elif features.get('rsi', 50) < 30:
+        elif features.get('rsi', 50) <= 30:
             insights.append("✅ RSI indicates oversold opportunity")
         
         if features.get('iv_skew', 0) > 5:
