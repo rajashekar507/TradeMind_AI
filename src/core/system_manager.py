@@ -156,6 +156,9 @@ class TradingSystemManager:
                     await self._display_results(enhanced_data, [])
                     return
             
+            if hasattr(self.signal_engine, 'cleanup_expired_signals'):
+                self.signal_engine.cleanup_expired_signals()
+            
             signals = await self.signal_engine.generate_signals(enhanced_data)
             
             validated_signals = []

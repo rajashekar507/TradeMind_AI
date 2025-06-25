@@ -86,14 +86,17 @@ class TelegramNotifier:
             return False
     
     def _format_trade_signal(self, signal: Dict[str, Any]) -> str:
-        """Format trade signal for Telegram with live data verification"""
+        """Format trade signal for Telegram with technical level verification"""
         try:
             timestamp = signal.get('timestamp', datetime.now())
             instrument = signal.get('instrument', 'N/A')
             strike = signal.get('strike', 'N/A')
-            option_type = signal.get('option_type', 'N/A')
-            direction = signal.get('direction', option_type)
+            direction = signal.get('direction', 'N/A')
             entry_price = signal.get('entry_price', 0)
+            entry_level = signal.get('entry_level', 0)
+            entry_reasoning = signal.get('entry_reasoning', 'Technical analysis')
+            signal_type = signal.get('signal_type', 'approaching')
+            strike_ltp = signal.get('strike_ltp', 0)
             stop_loss = signal.get('stop_loss', 0)
             target_1 = signal.get('target_1', 0)
             target_2 = signal.get('target_2', 0)
@@ -101,11 +104,11 @@ class TelegramNotifier:
             reason = signal.get('reason', 'Multi-factor analysis')
             expiry = signal.get('expiry', 'Current Week')
             current_spot = signal.get('current_spot', 0)
-            strike_ltp = signal.get('strike_ltp', entry_price)
             risk_status = signal.get('risk_status', 'VALIDATED')
+            signal_id = signal.get('signal_id', 'N/A')
             iv = signal.get('iv', 0)
             delta = signal.get('delta', 0)
-            oi_trend = signal.get('oi_trend', 'moderate')
+            oi_trend = signal.get('oi_trend', 'neutral')
             direction_reason = signal.get('direction_reason', 'Multi-factor analysis')
             
             if hasattr(timestamp, 'strftime'):
@@ -116,29 +119,35 @@ class TelegramNotifier:
                 date_str = datetime.now().strftime('%Y-%m-%d')
             
             status_emoji = "[VALIDATED]" if risk_status == 'VALIDATED' else "[RISK FILTERED]"
-            status_text = "VALIDATED" if risk_status == 'VALIDATED' else "RISK FILTERED"
+            signal_type_emoji = "🚀" if signal_type in ["breakout", "orb_breakout"] else "📈"
+            signal_type_text = signal_type.upper().replace("_", " ")
             
             message = f"""
-{status_emoji} LIVE TRADE SIGNAL
+{status_emoji} {signal_type_emoji} TECHNICAL TRADE SIGNAL
 
-📅 Timestamp: {date_str} {time_str}
+📅 Signal ID: {signal_id}
+⏰ Timestamp: {date_str} {time_str}
 📊 Instrument: {instrument}
 💹 Current Spot: ₹{current_spot}
-🎯 Signal Direction: {direction}
-⚡ Strike Price: {strike}
-💰 Strike LTP: ₹{strike_ltp}
-📆 Expiry Date: {expiry}
+🎯 Direction: {direction}
+⚡ Strike: {strike}
+📈 Signal Type: {signal_type_text}
+💰 Technical Entry: ₹{entry_level} (70% S/R + 30% ORB)
 🔥 Entry Price: ₹{entry_price}
-🛡️ Stop Loss: ₹{stop_loss}
-🎯 Target 1: ₹{target_1}
-🚀 Target 2: ₹{target_2}
-📈 Confidence Score: {confidence}%
+📊 Strike LTP: ₹{strike_ltp} (Reference)
+📆 Expiry: {expiry}
+🛡️ Stop Loss: ₹{stop_loss} (FIXED)
+🎯 Target 1: ₹{target_1} (FIXED)
+🚀 Target 2: ₹{target_2} (FIXED)
+📈 Confidence: {confidence}%
 📊 IV: {iv}% | Delta: {delta} | OI: {oi_trend}
+🧠 Entry Logic: {entry_reasoning}
 🧠 Direction Logic: {direction_reason}
-💡 Reason Summary: {reason}
-✅ Status: {status_text}
+💡 Analysis: {reason}
+✅ Status: {risk_status}
 
-[LIVE DATA VERIFIED] ✅
+[TECHNICAL LEVELS VERIFIED] ✅
+[30-MIN COOLDOWN ACTIVE] ⏰
 VLR_AI Institutional Trading System
 """
             return message.strip()
