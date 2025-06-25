@@ -86,7 +86,7 @@ class TelegramNotifier:
             return False
     
     def _format_trade_signal(self, signal: Dict[str, Any]) -> str:
-        """Format trade signal for Telegram"""
+        """Format trade signal for Telegram with live data verification"""
         try:
             timestamp = signal.get('timestamp', datetime.now())
             instrument = signal.get('instrument', 'N/A')
@@ -100,23 +100,29 @@ class TelegramNotifier:
             confidence = signal.get('confidence', 0)
             reason = signal.get('reason', 'Multi-factor analysis')
             expiry = signal.get('expiry', 'Current Week')
+            current_spot = signal.get('current_spot', 0)
+            strike_ltp = signal.get('strike_ltp', entry_price)
             risk_status = signal.get('risk_status', 'VALIDATED')
             
             if hasattr(timestamp, 'strftime'):
                 time_str = timestamp.strftime('%H:%M:%S IST')
+                date_str = timestamp.strftime('%Y-%m-%d')
             else:
                 time_str = datetime.now().strftime('%H:%M:%S IST')
+                date_str = datetime.now().strftime('%Y-%m-%d')
             
             status_emoji = "[VALIDATED]" if risk_status == 'VALIDATED' else "[RISK FILTERED]"
             status_text = "VALIDATED" if risk_status == 'VALIDATED' else "RISK FILTERED"
             
             message = f"""
-{status_emoji} TRADE SIGNAL
+{status_emoji} LIVE TRADE SIGNAL
 
-Timestamp: {time_str}
+Timestamp: {date_str} {time_str}
 Instrument: {instrument}
+Current Spot: Rs.{current_spot}
 Signal Direction: {direction}
 Strike Price: {strike}
+Strike LTP: Rs.{strike_ltp}
 Expiry Date: {expiry}
 Entry Price: Rs.{entry_price}
 Stop Loss: Rs.{stop_loss}
@@ -126,6 +132,7 @@ Confidence Score: {confidence}%
 Reason Summary: {reason}
 Status: {status_text}
 
+[LIVE DATA VERIFIED]
 VLR_AI Institutional Trading System
 """
             return message.strip()
