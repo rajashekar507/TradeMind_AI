@@ -12,6 +12,8 @@ from src.data.market_data import MarketDataEngine
 from src.analysis.technical_indicators import TechnicalIndicators
 from src.analysis.news_sentiment import NewsSentimentAnalyzer
 from src.analysis.global_market_analyzer import GlobalMarketAnalyzer
+from src.data_sources.support_resistance_data import SupportResistanceData
+from src.data_sources.orb_data import ORBData
 
 logger = logging.getLogger('trading_system.data_manager')
 
@@ -40,7 +42,10 @@ class DataManager:
         self.last_fetch_time = None
         self.data_freshness = {}
         
-        logger.info("✅ DataManager initialized with 7 institutional-grade data sources")
+        self.sr_data = SupportResistanceData(settings, kite_client)
+        self.orb_data = ORBData(settings, kite_client)
+        
+        logger.info("✅ DataManager initialized with 9 institutional-grade data sources")
     
     async def initialize(self) -> bool:
         """Initialize all data sources"""
@@ -110,10 +115,50 @@ class DataManager:
                 'health_percentage': (sum(1 for status in data_status.values() if status == 'success') / len(data_status)) * 100
             }
             
+            if 'spot_data' in market_data and market_data['spot_data'].get('status') == 'success':
+                prices = market_data['spot_data'].get('prices', {})
+                nifty_price = prices.get('NIFTY', 25200)
+                banknifty_price = prices.get('BANKNIFTY', 56500)
+                
+                try:
+                    nifty_sr = await self.sr_data.fetch_sr_data('NIFTY', nifty_price)
+                    banknifty_sr = await self.sr_data.fetch_sr_data('BANKNIFTY', banknifty_price)
+                    market_data['nifty_sr'] = nifty_sr
+                    market_data['banknifty_sr'] = banknifty_sr
+                    
+                    nifty_orb = await self.orb_data.fetch_orb_data('NIFTY', nifty_price)
+                    banknifty_orb = await self.orb_data.fetch_orb_data('BANKNIFTY', banknifty_price)
+                    market_data['nifty_orb'] = nifty_orb
+                    market_data['banknifty_orb'] = banknifty_orb
+                    
+                    if nifty_sr.get('status') == 'success':
+                        data_status['nifty_sr'] = 'success'
+                    if banknifty_sr.get('status') == 'success':
+                        data_status['banknifty_sr'] = 'success'
+                    if nifty_orb.get('status') == 'success':
+                        data_status['nifty_orb'] = 'success'
+                    if banknifty_orb.get('status') == 'success':
+                        data_status['banknifty_orb'] = 'success'
+                    
+                    logger.info(f"✅ S/R and ORB data fetched for both instruments")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to fetch S/R and ORB data: {e}")
+            
+            total_sources = len(data_status)
+            successful_sources = sum(1 for status in data_status.values() if status == 'success')
+            health_percentage = (successful_sources / total_sources) * 100 if total_sources > 0 else 0
+            
+            self.data_freshness = {
+                'last_update': self.last_fetch_time,
+                'sources': data_status,
+                'health_percentage': health_percentage
+            }
+            
             market_data['data_status'] = data_status
             market_data['fetch_time'] = self.last_fetch_time
             
-            logger.info(f"📊 Data fetch completed - {self.data_freshness['health_percentage']:.0f}% sources healthy")
+            logger.info(f"📊 Data fetch completed - {health_percentage:.0f}% sources healthy")
             return market_data
             
         except Exception as e:
