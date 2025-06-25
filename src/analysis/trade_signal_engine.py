@@ -236,7 +236,7 @@ class TradeSignalEngine:
             return 62.0
     
     def _create_trade_signal(self, instrument: str, confidence: float, market_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a formatted trade signal with live LTP pricing"""
+        """Create a formatted trade signal with live LTP pricing and trend-based direction"""
         try:
             spot_data = market_data.get('spot_data', {})
             current_price = 0
@@ -245,7 +245,7 @@ class TradeSignalEngine:
                 prices = spot_data.get('prices', {})
                 current_price = prices.get(instrument, 0)
             
-            direction = 'CE' if confidence > 62 else 'PE'  # Lowered threshold
+            direction = self._determine_signal_direction(instrument, market_data, confidence)
             
             strike, entry_price = self._find_best_strike_with_ltp(instrument, current_price, direction, market_data)
             
@@ -258,24 +258,11 @@ class TradeSignalEngine:
                 else:
                     strike = int((current_price - strike_buffer) / strike_buffer) * strike_buffer
             
-            if entry_price > 200:  # High premium options
-                sl_percentage = 0.65  # Tighter stop loss
-                target1_percentage = 1.4
-                target2_percentage = 1.8
-            elif entry_price > 100:  # Medium premium options
-                sl_percentage = 0.7
-                target1_percentage = 1.35
-                target2_percentage = 1.7
-            else:  # Low premium options
-                sl_percentage = 0.75  # Wider stop loss
-                target1_percentage = 1.3
-                target2_percentage = 1.6
-            
-            sl_price = max(int(entry_price * sl_percentage), 5)  # Minimum ₹5
-            target1 = int(entry_price * target1_percentage)
-            target2 = int(entry_price * target2_percentage)
+            sl_price, target1, target2 = self._calculate_dynamic_levels(entry_price, instrument, market_data)
             
             expiry_date = self._get_option_expiry(market_data)
+            
+            option_details = self._get_option_details(instrument, strike, direction, market_data)
             
             signal = {
                 'timestamp': datetime.now(),
@@ -290,9 +277,13 @@ class TradeSignalEngine:
                 'confidence': round(confidence, 1),
                 'current_spot': current_price,
                 'strike_ltp': entry_price,
-                'reason': self._generate_signal_reason(confidence, market_data),
+                'reason': self._generate_signal_reason(confidence, market_data, direction),
                 'expiry': expiry_date,
-                'risk_status': 'VALIDATED'
+                'risk_status': 'VALIDATED',
+                'iv': option_details.get('iv', 0),
+                'delta': option_details.get('delta', 0),
+                'oi_trend': option_details.get('oi_trend', 'neutral'),
+                'direction_reason': option_details.get('direction_reason', 'Multi-factor analysis')
             }
             
             logger.info(f"✅ Generated {instrument} signal: {strike} {direction} @ ₹{entry_price} LTP, {confidence:.1f}% confidence")
@@ -302,7 +293,204 @@ class TradeSignalEngine:
             logger.error(f"❌ Failed to create trade signal: {e}")
             return {}
     
-    def _generate_signal_reason(self, confidence: float, market_data: Dict[str, Any]) -> str:
+    def _determine_signal_direction(self, instrument: str, market_data: Dict[str, Any], confidence: float) -> str:
+        """Determine CE/PE direction based on live market trend analysis"""
+        try:
+            technical_data = market_data.get('technical_data', {})
+            vix_data = market_data.get('vix_data', {})
+            global_data = market_data.get('global_data', {})
+            
+            bullish_signals = 0
+            bearish_signals = 0
+            
+            if technical_data and technical_data.get('status') == 'success':
+                inst_data = technical_data.get(instrument, {})
+                trend = inst_data.get('trend', 'neutral')
+                rsi = inst_data.get('rsi', 50)
+                
+                if trend == 'bullish':
+                    bullish_signals += 2
+                elif trend == 'bearish':
+                    bearish_signals += 2
+                
+                if rsi > 55:
+                    bullish_signals += 1
+                elif rsi < 45:
+                    bearish_signals += 1
+            
+            if vix_data and vix_data.get('status') == 'success':
+                vix = vix_data.get('vix', 16.5)
+                if vix < 18:  # Low VIX = bullish sentiment
+                    bullish_signals += 1
+                elif vix > 22:  # High VIX = bearish sentiment
+                    bearish_signals += 1
+            
+            if global_data and global_data.get('status') == 'success':
+                indices = global_data.get('indices', {})
+                sgx = indices.get('SGX_NIFTY', 0)
+                if sgx > 10:
+                    bullish_signals += 1
+                elif sgx < -10:
+                    bearish_signals += 1
+            
+            options_data = market_data.get('options_data', {})
+            if options_data and options_data.get('status') == 'success':
+                inst_options = options_data.get(instrument, {})
+                if inst_options and inst_options.get('status') == 'success':
+                    options_chain = inst_options.get('options_data', {})
+                    
+                    ce_oi_total = sum(opt.get('oi', 0) for key, opt in options_chain.items() if '_CE' in key)
+                    pe_oi_total = sum(opt.get('oi', 0) for key, opt in options_chain.items() if '_PE' in key)
+                    
+                    if ce_oi_total > 0:
+                        pcr = pe_oi_total / ce_oi_total
+                        if pcr > 1.2:  # High PCR = bullish
+                            bullish_signals += 1
+                        elif pcr < 0.8:  # Low PCR = bearish
+                            bearish_signals += 1
+            
+            if bullish_signals > bearish_signals:
+                direction = 'CE'
+                logger.info(f"📈 {instrument} direction: CE (Bullish signals: {bullish_signals}, Bearish: {bearish_signals})")
+            elif bearish_signals > bullish_signals:
+                direction = 'PE'
+                logger.info(f"📉 {instrument} direction: PE (Bullish signals: {bullish_signals}, Bearish: {bearish_signals})")
+            else:
+                direction = 'CE' if confidence > 65 else 'PE'
+                logger.info(f"⚖️ {instrument} direction: {direction} (Tie-breaker, confidence: {confidence}%)")
+            
+            return direction
+            
+        except Exception as e:
+            logger.error(f"❌ Direction determination failed: {e}")
+            return 'CE'  # Default to CE on error
+    
+    def _calculate_dynamic_levels(self, entry_price: float, instrument: str, market_data: Dict[str, Any]) -> tuple:
+        """Calculate dynamic SL and targets based on volatility and market conditions"""
+        try:
+            vix_data = market_data.get('vix_data', {})
+            vix = vix_data.get('vix', 16.5) if vix_data and vix_data.get('status') == 'success' else 16.5
+            
+            base_sl = 0.70
+            base_target1 = 1.35
+            base_target2 = 1.70
+            
+            if vix > 25:  # High volatility
+                sl_adjustment = -0.05  # Wider SL
+                target_adjustment = 0.15  # Higher targets
+            elif vix < 15:  # Low volatility
+                sl_adjustment = 0.05  # Tighter SL
+                target_adjustment = -0.10  # Lower targets
+            else:
+                sl_adjustment = 0
+                target_adjustment = 0
+            
+            if entry_price > 200:  # High premium
+                sl_adjustment -= 0.05  # Tighter SL for expensive options
+                target_adjustment += 0.10
+            elif entry_price < 50:  # Low premium
+                sl_adjustment += 0.05  # Wider SL for cheap options
+                target_adjustment -= 0.05
+            
+            sl_percentage = max(0.60, min(base_sl + sl_adjustment, 0.80))
+            target1_percentage = max(1.20, base_target1 + target_adjustment)
+            target2_percentage = max(1.50, base_target2 + target_adjustment * 1.5)
+            
+            sl_price = max(int(entry_price * sl_percentage), 5)
+            target1 = int(entry_price * target1_percentage)
+            target2 = int(entry_price * target2_percentage)
+            
+            logger.debug(f"💰 Dynamic levels for ₹{entry_price}: SL=₹{sl_price} ({sl_percentage:.2f}), T1=₹{target1}, T2=₹{target2} (VIX: {vix})")
+            
+            return sl_price, target1, target2
+            
+        except Exception as e:
+            logger.error(f"❌ Dynamic level calculation failed: {e}")
+            sl_price = max(int(entry_price * 0.70), 5)
+            target1 = int(entry_price * 1.35)
+            target2 = int(entry_price * 1.70)
+            return sl_price, target1, target2
+    
+    def _get_option_details(self, instrument: str, strike: int, direction: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Get additional option details like IV, Delta, OI trend"""
+        try:
+            options_data = market_data.get('options_data', {})
+            if not options_data or options_data.get('status') != 'success':
+                return {}
+            
+            instrument_options = options_data.get(instrument, {})
+            if not instrument_options or instrument_options.get('status') != 'success':
+                return {}
+            
+            options_chain = instrument_options.get('options_data', {})
+            strike_key = f"{float(strike)}_{direction}"
+            
+            if strike_key in options_chain:
+                option_data = options_chain[strike_key]
+                
+                ltp = option_data.get('ltp', 0)
+                spot_data = market_data.get('spot_data', {})
+                current_price = 0
+                if spot_data and spot_data.get('status') == 'success':
+                    current_price = spot_data.get('prices', {}).get(instrument, 0)
+                
+                if current_price > 0 and ltp > 0:
+                    moneyness = strike / current_price if direction == 'CE' else current_price / strike
+                    iv_estimate = (ltp / current_price) * 100 * (2 - moneyness)
+                    iv_estimate = max(10, min(iv_estimate, 80))  # Cap between 10-80%
+                else:
+                    iv_estimate = 20  # Default IV
+                
+                if direction == 'CE':
+                    if strike > current_price:  # OTM CE
+                        delta_estimate = 0.3
+                    elif strike < current_price * 0.98:  # ITM CE
+                        delta_estimate = 0.7
+                    else:  # ATM CE
+                        delta_estimate = 0.5
+                else:  # PE
+                    if strike < current_price:  # OTM PE
+                        delta_estimate = -0.3
+                    elif strike > current_price * 1.02:  # ITM PE
+                        delta_estimate = -0.7
+                    else:  # ATM PE
+                        delta_estimate = -0.5
+                
+                oi = option_data.get('oi', 0)
+                if oi > 100000:
+                    oi_trend = 'high'
+                elif oi > 50000:
+                    oi_trend = 'moderate'
+                else:
+                    oi_trend = 'low'
+                
+                technical_data = market_data.get('technical_data', {})
+                if technical_data and technical_data.get('status') == 'success':
+                    inst_data = technical_data.get(instrument, {})
+                    trend = inst_data.get('trend', 'neutral')
+                    rsi = inst_data.get('rsi', 50)
+                    
+                    if direction == 'CE':
+                        direction_reason = f"Bullish trend ({trend}), RSI {rsi}"
+                    else:
+                        direction_reason = f"Bearish trend ({trend}), RSI {rsi}"
+                else:
+                    direction_reason = "Multi-factor analysis"
+                
+                return {
+                    'iv': round(iv_estimate, 1),
+                    'delta': round(delta_estimate, 2),
+                    'oi_trend': oi_trend,
+                    'direction_reason': direction_reason
+                }
+            
+            return {}
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get option details: {e}")
+            return {}
+    
+    def _generate_signal_reason(self, confidence: float, market_data: Dict[str, Any], direction: str = None) -> str:
         """Generate human-readable reason based on live market conditions"""
         reasons = []
         

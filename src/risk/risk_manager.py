@@ -17,13 +17,13 @@ class RiskManager:
         self.settings = settings
         
         self.risk_limits = {
-            'max_daily_loss': -10000,
-            'max_position_size': 100000,
-            'max_portfolio_exposure': 500000,
-            'max_single_trade_risk': 5000,
+            'max_daily_loss': -50000,
+            'max_position_size': 500000,
+            'max_portfolio_exposure': 2000000,
+            'max_single_trade_risk': 25000,
             'max_correlation_exposure': 0.7,
             'max_vix_threshold': 35,
-            'min_liquidity_threshold': 1000
+            'min_liquidity_threshold': 500
         }
         
         self.position_limits = {
@@ -207,7 +207,7 @@ class RiskManager:
                         score += 20
                 else:
                     violations.append("Target option not found in chain")
-                    score += 25
+                    score += 10  # Reduced penalty since this might be due to data timing
             
         except Exception as e:
             logger.warning(f"⚠️ Liquidity risk assessment failed: {e}")

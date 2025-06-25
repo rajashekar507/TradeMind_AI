@@ -103,6 +103,10 @@ class TelegramNotifier:
             current_spot = signal.get('current_spot', 0)
             strike_ltp = signal.get('strike_ltp', entry_price)
             risk_status = signal.get('risk_status', 'VALIDATED')
+            iv = signal.get('iv', 0)
+            delta = signal.get('delta', 0)
+            oi_trend = signal.get('oi_trend', 'moderate')
+            direction_reason = signal.get('direction_reason', 'Multi-factor analysis')
             
             if hasattr(timestamp, 'strftime'):
                 time_str = timestamp.strftime('%H:%M:%S IST')
@@ -117,22 +121,24 @@ class TelegramNotifier:
             message = f"""
 {status_emoji} LIVE TRADE SIGNAL
 
-Timestamp: {date_str} {time_str}
-Instrument: {instrument}
-Current Spot: Rs.{current_spot}
-Signal Direction: {direction}
-Strike Price: {strike}
-Strike LTP: Rs.{strike_ltp}
-Expiry Date: {expiry}
-Entry Price: Rs.{entry_price}
-Stop Loss: Rs.{stop_loss}
-Target 1: Rs.{target_1}
-Target 2: Rs.{target_2}
-Confidence Score: {confidence}%
-Reason Summary: {reason}
-Status: {status_text}
+📅 Timestamp: {date_str} {time_str}
+📊 Instrument: {instrument}
+💹 Current Spot: ₹{current_spot}
+🎯 Signal Direction: {direction}
+⚡ Strike Price: {strike}
+💰 Strike LTP: ₹{strike_ltp}
+📆 Expiry Date: {expiry}
+🔥 Entry Price: ₹{entry_price}
+🛡️ Stop Loss: ₹{stop_loss}
+🎯 Target 1: ₹{target_1}
+🚀 Target 2: ₹{target_2}
+📈 Confidence Score: {confidence}%
+📊 IV: {iv}% | Delta: {delta} | OI: {oi_trend}
+🧠 Direction Logic: {direction_reason}
+💡 Reason Summary: {reason}
+✅ Status: {status_text}
 
-[LIVE DATA VERIFIED]
+[LIVE DATA VERIFIED] ✅
 VLR_AI Institutional Trading System
 """
             return message.strip()
