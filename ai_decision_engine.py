@@ -164,7 +164,7 @@ class AIDecisionEngine:
         
         # Configuration
         self.config = {
-            'min_confidence_threshold': 60.0,  # Minimum confidence to recommend trades
+            'min_confidence_threshold': 40.0,  # Minimum confidence to recommend trades
             'max_risk_per_trade': 0.01,       # Maximum 1% risk per trade
             'max_daily_trades': 8,            # Maximum trades per day
             'max_concurrent_positions': 4,     # Maximum open positions

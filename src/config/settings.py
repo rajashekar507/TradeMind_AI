@@ -29,7 +29,7 @@ class Settings:
         self.DHAN_CLIENT_ID = os.getenv('DHAN_CLIENT_ID')
         self.DHAN_ACCESS_TOKEN = os.getenv('DHAN_ACCESS_TOKEN')
         
-        self.CONFIDENCE_THRESHOLD = 60.0
+        self.CONFIDENCE_THRESHOLD = 20.0
         self.MAX_DAILY_LOSS = 50000
         self.MAX_POSITION_SIZE = 100000
         

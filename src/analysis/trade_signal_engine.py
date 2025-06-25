@@ -16,7 +16,7 @@ class TradeSignalEngine:
     
     def __init__(self, settings):
         self.settings = settings
-        self.confidence_threshold = 60.0
+        self.confidence_threshold = 20.0
         
         self.active_signals = {}
         self.last_signal_time = {}
@@ -291,11 +291,15 @@ class TradeSignalEngine:
             if entry_level == 0:
                 return {}
             
-            strike = self._calculate_technical_strike(instrument, current_price, direction)
-            
-            strike_ltp = self._get_live_option_ltp(instrument, strike, direction, market_data)
-            
             rejected_logger = RejectedSignalsLogger()
+            
+            strike, strike_ltp = self._find_best_strike_with_ltp(instrument, current_price, direction, market_data)
+            
+            if strike == 0 or strike_ltp == 0:
+                rejected_logger.log_rejection(instrument, 0, direction, "No valid strikes with live LTP found", market_data,
+                                            {'ltp': 0, 'validation_type': 'no_valid_strikes'})
+                logger.warning(f"⚠️ No valid strikes with LTP found for {instrument} {direction}, skipping signal")
+                return {}
             
             if strike_ltp <= 0:
                 rejected_logger.log_rejection(instrument, strike, direction, "Zero LTP - no live market data", market_data,
@@ -604,7 +608,7 @@ class TradeSignalEngine:
             return 0
     
     def _find_best_strike_with_ltp(self, instrument: str, current_price: float, direction: str, market_data: Dict[str, Any]) -> tuple:
-        """Find best strike with live LTP"""
+        """Find best strike with live LTP based on market conditions"""
         try:
             options_data = market_data.get('options_data', {})
             if not (options_data and options_data.get('status') == 'success'):
@@ -618,9 +622,10 @@ class TradeSignalEngine:
             if not options_chain:
                 return 0, 0
             
-            best_strike = 0
-            best_ltp = 0
-            target_range = (50, 200)
+            interval = 50 if instrument == 'NIFTY' else 100
+            atm_strike = round(current_price / interval) * interval
+            
+            valid_strikes = []
             
             for strike_key, option_data in options_chain.items():
                 if not strike_key.endswith(f"_{direction}"):
@@ -629,11 +634,42 @@ class TradeSignalEngine:
                 strike = option_data.get('strike', 0)
                 ltp = option_data.get('ltp', 0)
                 
-                if target_range[0] <= ltp <= target_range[1]:
-                    if ltp > best_ltp:
-                        best_strike = strike
-                        best_ltp = ltp
+                if ltp > 0 and strike > 0:  # Only strikes with live LTP
+                    valid_strikes.append((strike, ltp))
             
+            if not valid_strikes:
+                logger.warning(f"⚠️ No valid strikes with LTP found for {instrument} {direction}")
+                return 0, 0
+            
+            valid_strikes.sort(key=lambda x: x[0])
+            
+            best_strike = 0
+            best_ltp = 0
+            
+            if direction == 'CE':
+                otm_strikes = [(s, ltp) for s, ltp in valid_strikes if s >= atm_strike]
+                if otm_strikes:
+                    for strike, ltp in otm_strikes:
+                        if 20 <= ltp <= 300:  # Reasonable premium range
+                            best_strike, best_ltp = strike, ltp
+                            break
+                    if not best_strike:  # Fallback to first OTM
+                        best_strike, best_ltp = otm_strikes[0]
+                else:
+                    best_strike, best_ltp = valid_strikes[-1]
+            else:
+                otm_strikes = [(s, ltp) for s, ltp in valid_strikes if s <= atm_strike]
+                if otm_strikes:
+                    for strike, ltp in reversed(otm_strikes):
+                        if 20 <= ltp <= 300:  # Reasonable premium range
+                            best_strike, best_ltp = strike, ltp
+                            break
+                    if not best_strike:  # Fallback to first OTM
+                        best_strike, best_ltp = otm_strikes[-1]
+                else:
+                    best_strike, best_ltp = valid_strikes[0]
+            
+            logger.info(f"📊 Selected {direction} strike for {instrument}: {best_strike} with LTP ₹{best_ltp} (ATM: {atm_strike})")
             return best_strike, best_ltp
             
         except Exception as e:
@@ -879,23 +915,22 @@ class TradeSignalEngine:
             return 80
     
     def _calculate_technical_strike(self, instrument: str, current_price: float, direction: str) -> int:
-        """Calculate strike based on current price and direction"""
+        """Calculate ATM or near-ATM strike that actually exists in market"""
         try:
-            strike_buffer = 100 if instrument == 'NIFTY' else 500
+            interval = 50 if instrument == 'NIFTY' else 100
+            
+            atm_strike = round(current_price / interval) * interval
             
             if direction == 'CE':
-                strike = current_price + strike_buffer
+                strike = atm_strike + interval  # 1 strike OTM for calls
             else:
-                strike = current_price - strike_buffer
-            
-            interval = 50 if instrument == 'NIFTY' else 100
-            strike = round(strike / interval) * interval
+                strike = atm_strike - interval  # 1 strike OTM for puts
             
             return int(strike)
             
         except Exception as e:
             logger.error(f"❌ Technical strike calculation failed: {e}")
-            return 25200 if instrument == 'NIFTY' else 56500
+            return 25250 if instrument == 'NIFTY' else 56600
     
     def _get_volatility_multiplier(self, market_data: Dict[str, Any]) -> float:
         """Get volatility multiplier for premium calculation"""
