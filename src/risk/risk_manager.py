@@ -411,21 +411,22 @@ class RiskManager:
         
         try:
             vix_data = market_data.get('vix_data', {})
-            if vix_data.get('status') == 'success':
+            if isinstance(vix_data, dict) and vix_data.get('status') == 'success':
                 vix = vix_data.get('vix', 16)
-                if vix > 40:
+                if isinstance(vix, (int, float)) and vix > 40:
                     circuit_status['triggered'] = True
                     circuit_status['breakers'].append(f"VIX circuit breaker: {vix}")
                     circuit_status['action'] = 'halt_trading'
             
             global_data = market_data.get('global_data', {})
-            if global_data.get('status') == 'success':
+            if isinstance(global_data, dict) and global_data.get('status') == 'success':
                 indices = global_data.get('indices', {})
                 
                 major_decline_count = 0
-                for index_name, index_data in indices.items():
-                    if index_data.get('change_pct', 0) < -3:
-                        major_decline_count += 1
+                if isinstance(indices, dict):
+                    for index_name, index_data in indices.items():
+                        if isinstance(index_data, dict) and index_data.get('change_pct', 0) < -3:
+                            major_decline_count += 1
                 
                 if major_decline_count >= 4:
                     circuit_status['triggered'] = True
@@ -433,9 +434,9 @@ class RiskManager:
                     circuit_status['action'] = 'reduce_exposure'
             
             fii_dii_data = market_data.get('fii_dii_data', {})
-            if fii_dii_data.get('status') == 'success':
+            if isinstance(fii_dii_data, dict) and fii_dii_data.get('status') == 'success':
                 net_flow = fii_dii_data.get('net_flow', 0)
-                if net_flow < -5000:
+                if isinstance(net_flow, (int, float)) and net_flow < -5000:
                     circuit_status['triggered'] = True
                     circuit_status['breakers'].append(f"FII selling circuit breaker: {net_flow} Cr")
                     circuit_status['action'] = 'defensive_mode'

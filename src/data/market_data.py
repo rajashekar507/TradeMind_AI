@@ -1,7 +1,7 @@
 # TradeMind_AI Market Data Engine - FIXED VERSION
 # Fetches REAL NIFTY, BANKNIFTY, and SENSEX data
 
-from dhanhq import DhanContext, dhanhq
+from dhanhq import dhanhq
 import time
 import json
 import logging
@@ -31,8 +31,7 @@ class MarketDataEngine:
                 self.dhan = None
                 return
             
-            dhan_context = DhanContext(client_id=client_id, access_token=access_token)
-            self.dhan = dhanhq(dhan_context)
+            self.dhan = dhanhq(client_id=client_id, access_token=access_token)
             
             # Test connection
             test_result = self._test_connection()
